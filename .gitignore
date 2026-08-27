@@ -16,13 +16,15 @@ datasets/_acquisition/
 datasets/_vegetable_acquisition/
 datasets/real_world_test/
 
-# Trained Model Binaries (Include V2 experimental model weights for Render deployment)
+# Trained Model Binaries (Include V2 experimental model weights & ONNX export for Render deployment)
 *.pt
 *.onnx
 vision_models/**/*.pt
 vision_models/**/*.onnx
 !vision_models/model_metadata.json
 !vision_models/experiments/grocery_yolov8_v2/weights/best.pt
+!vision_models/deployment/grocery_yolov8_v2_web/model.pt
+!vision_models/deployment/grocery_yolov8_v2_web/model.onnx
 
 # Flutter & IDE
 .dart_tool/
