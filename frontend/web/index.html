@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FreshGuard AI - Household Food & Grocery Management</title>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    :root {
+      --bg: #0F172A;
+      --surface: #1E293B;
+      --surface-variant: #334155;
+      --primary: #10B981;
+      --primary-dark: #047857;
+      --emerald: #34D399;
+      --text-main: #F8FAFC;
+      --text-sub: #94A3B8;
+      --status-healthy: #10B981;
+      --status-expiring: #F59E0B;
+      --status-expired: #EF4444;
+      --status-low: #6366F1;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Outfit', sans-serif; }
+    body { background-color: var(--bg); color: var(--text-main); display: flex; justify-content: center; min-height: 100vh; }
+
+    .phone-container {
+      width: 100%;
+      max-width: 440px;
+      background: var(--bg);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
+      border-left: 1px solid rgba(255, 255, 255, 0.05);
+      border-right: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .top-bar {
+      padding: 16px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: var(--bg);
+      position: sticky;
+      top: 0;
+      z-index: 50;
+    }
+    .brand { display: flex; align-items: center; gap: 10px; }
+    .brand-icon {
+      width: 36px; height: 36px; background: rgba(16, 185, 129, 0.2);
+      border: 1px solid var(--primary); border-radius: 10px;
+      display: flex; align-items: center; justify-content: center; color: var(--primary);
+    }
+
+    .main-content { flex: 1; padding: 16px 20px; overflow-y: auto; padding-bottom: 90px; }
+
+    /* Cards & Grids */
+    .status-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 16px 0; }
+    .status-card {
+      background: var(--surface); padding: 14px; borderRadius: 14px;
+      display: flex; align-items: center; gap: 12px; border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+    .status-card i { font-size: 20px; }
+    .status-card.healthy { border-color: rgba(16, 185, 129, 0.3); color: var(--status-healthy); }
+    .status-card.expiring { border-color: rgba(245, 158, 11, 0.3); color: var(--status-expiring); }
+    .status-card.expired { border-color: rgba(239, 68, 68, 0.3); color: var(--status-expired); }
+    .status-card.low { border-color: rgba(99, 102, 241, 0.3); color: var(--status-low); }
+
+    .ai-card {
+      background: linear-gradient(135deg, var(--primary-dark), var(--surface));
+      border: 1px solid rgba(52, 211, 153, 0.4);
+      padding: 16px; border-radius: 16px; margin: 16px 0;
+    }
+    .ai-card header { display: flex; align-items: center; gap: 8px; color: var(--emerald); font-weight: 700; margin-bottom: 8px; }
+
+    .quick-actions { display: flex; gap: 8px; margin: 16px 0; }
+    .btn {
+      flex: 1; padding: 12px; border-radius: 12px; border: none; font-weight: 600; font-size: 13px;
+      cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; transition: 0.2s;
+    }
+    .btn-primary { background: var(--primary); color: #fff; }
+    .btn-secondary { background: var(--surface-variant); color: #fff; }
+    .btn-emerald { background: rgba(52, 211, 153, 0.2); color: var(--emerald); border: 1px solid var(--emerald); }
+
+    .item-card {
+      background: var(--surface); padding: 14px; border-radius: 14px;
+      margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center;
+    }
+    .item-info h4 { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
+    .item-info p { font-size: 12px; color: var(--text-sub); }
+    .tag { font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 6px; display: inline-block; margin-top: 4px; }
+
+    /* Bottom Navigation */
+    .nav-bar {
+      position: fixed; bottom: 0; width: 100%; max-width: 440px;
+      background: var(--surface); display: flex; justify-content: space-around;
+      padding: 12px 0; border-top: 1px solid rgba(255, 255, 255, 0.05); z-index: 50;
+    }
+    .nav-item { display: flex; flex-direction: column; align-items: center; gap: 4px; color: var(--text-sub); font-size: 11px; cursor: pointer; text-decoration: none; }
+    .nav-item.active { color: var(--primary); }
+
+    /* Modal Overlay */
+    .modal {
+      display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8);
+      z-index: 100; align-items: flex-end; justify-content: center;
+    }
+    .modal.active { display: flex; }
+    .modal-content {
+      background: var(--surface); width: 100%; max-width: 440px;
+      padding: 24px; border-top-left-radius: 24px; border-top-right-radius: 24px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="phone-container">
+    <!-- Top Header -->
+    <div class="top-bar">
+      <div class="brand">
+        <div class="brand-icon"><i class="fa-solid fa-shield-halved"></i></div>
+        <div>
+          <h3 style="font-size: 18px; font-weight: 700;">FreshGuard AI</h3>
+          <p style="font-size: 11px; color: var(--text-sub);">Morgan Family Kitchen</p>
+        </div>
+      </div>
+      <i class="fa-regular fa-bell" style="font-size: 20px; color: var(--text-sub); cursor: pointer;"></i>
+    </div>
+
+    <!-- Main Dynamic Content Container -->
+    <div class="main-content" id="app-view">
+      <!-- Home Dashboard Screen View -->
+      <h2 style="font-size: 22px; font-weight: 700; margin-top: 8px;">Good Morning 👋</h2>
+      <p style="color: var(--text-sub); font-size: 13px;">Your Kitchen Status</p>
+
+      <!-- Status Summary Grid -->
+      <div class="status-grid">
+        <div class="status-card healthy">
+          <i class="fa-solid fa-circle-check"></i>
+          <div><strong style="font-size: 13px;">Healthy</strong><br><span style="font-size: 12px; color: #fff;">18 Items</span></div>
+        </div>
+        <div class="status-card expiring">
+          <i class="fa-solid fa-clock"></i>
+          <div><strong style="font-size: 13px;">Expiring Soon</strong><br><span style="font-size: 12px; color: #fff;">4 Items</span></div>
+        </div>
+        <div class="status-card expired">
+          <i class="fa-solid fa-triangle-exclamation"></i>
+          <div><strong style="font-size: 13px;">Expired</strong><br><span style="font-size: 12px; color: #fff;">2 Items</span></div>
+        </div>
+        <div class="status-card low">
+          <i class="fa-solid fa-basket-shopping"></i>
+          <div><strong style="font-size: 13px;">Running Low</strong><br><span style="font-size: 12px; color: #fff;">3 Items</span></div>
+        </div>
+      </div>
+
+      <!-- Quick Action Buttons -->
+      <div class="quick-actions">
+        <button class="btn btn-primary" onclick="openScanModal('manual')"><i class="fa-solid fa-plus"></i> Add Item</button>
+        <button class="btn btn-secondary" onclick="openScanModal('ocr')"><i class="fa-solid fa-camera"></i> Scan OCR</button>
+        <button class="btn btn-emerald" style="background: #10b981;" onclick="window.open('vision_demo.html', '_blank')"><i class="fa-solid fa-camera-rotate"></i> Live Vision AI Demo</button>
+      </div>
+
+      <!-- AI Insight Banner -->
+      <div class="ai-card">
+        <header><i class="fa-solid fa-wand-magic-sparkles"></i> AI Insight</header>
+        <p style="font-size: 13px; line-height: 1.4;">"You usually consume 1 litre of milk every 2 days. Based on your current stock (0.5L), you will need milk tomorrow."</p>
+      </div>
+
+      <!-- Expiring Soon List -->
+      <h3 style="font-size: 16px; font-weight: 700; margin: 16px 0 10px;">Expiring Soon ⏰</h3>
+      <div class="item-card">
+        <div class="item-info">
+          <h4>Amul Taaza Toned Milk</h4>
+          <p>Location: Fridge • 0.5 L remaining</p>
+          <span class="tag" style="background: rgba(245,158,11,0.2); color: var(--status-expiring);">Expires Tomorrow</span>
+        </div>
+        <i class="fa-solid fa-chevron-right" style="color: var(--text-sub);"></i>
+      </div>
+      <div class="item-card">
+        <div class="item-info">
+          <h4>Britannia Whole Wheat Bread</h4>
+          <p>Location: Pantry • 1 pack</p>
+          <span class="tag" style="background: rgba(245,158,11,0.2); color: var(--status-expiring);">Expires in 2 days</span>
+        </div>
+        <i class="fa-solid fa-chevron-right" style="color: var(--text-sub);"></i>
+      </div>
+
+      <!-- Running Low List -->
+      <h3 style="font-size: 16px; font-weight: 700; margin: 16px 0 10px;">Running Low 🛒</h3>
+      <div class="item-card">
+        <div class="item-info">
+          <h4>Fresh Red Apples</h4>
+          <p>Current: 2 pcs • Consumption: 1/day</p>
+          <span class="tag" style="background: rgba(99,102,241,0.2); color: var(--status-low);">Estimated 1 day remaining</span>
+        </div>
+        <button class="btn btn-emerald" style="padding: 6px 12px; font-size: 11px;" onclick="switchTab('cart')">Buy Now</button>
+      </div>
+    </div>
+
+    <!-- Bottom Navigation Bar -->
+    <div class="nav-bar">
+      <div class="nav-item active" onclick="switchTab('home')"><i class="fa-solid fa-house" style="font-size: 18px;"></i><span>Home</span></div>
+      <div class="nav-item" onclick="switchTab('inventory')"><i class="fa-solid fa-boxes-stacked" style="font-size: 18px;"></i><span>Inventory</span></div>
+      <div class="nav-item" onclick="openScanModal('ocr')"><i class="fa-solid fa-qrcode" style="font-size: 22px; color: var(--primary);"></i><span>Scan</span></div>
+      <div class="nav-item" onclick="switchTab('cart')"><i class="fa-solid fa-cart-shopping" style="font-size: 18px;"></i><span>Smart Cart</span></div>
+      <div class="nav-item" onclick="switchTab('assistant')"><i class="fa-solid fa-robot" style="font-size: 18px;"></i><span>AI Agent</span></div>
+    </div>
+  </div>
+
+  <!-- Interactive Scan Modal -->
+  <div class="modal" id="scan-modal">
+    <div class="modal-content">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+        <h3 style="font-size: 18px;" id="modal-title">AI Package OCR Scanner</h3>
+        <i class="fa-solid fa-xmark" style="cursor: pointer; font-size: 20px;" onclick="closeModal()"></i>
+      </div>
+
+      <div style="background: #000; border: 2px dashed var(--emerald); padding: 24px; text-align: center; border-radius: 14px; margin-bottom: 16px;">
+        <i class="fa-solid fa-expand" style="font-size: 48px; color: var(--emerald);"></i>
+        <p style="font-size: 12px; color: var(--emerald); margin-top: 10px;">Package OCR Regex Engine Active</p>
+      </div>
+
+      <div style="background: var(--bg); padding: 12px; border-radius: 10px; margin-bottom: 16px;">
+        <p style="font-size: 12px; color: var(--text-sub);">Detected Expiry Date: <strong style="color: var(--emerald);">20 August 2026</strong></p>
+        <p style="font-size: 12px; color: var(--text-sub);">Confidence Score: <strong style="color: var(--primary);">94.2%</strong></p>
+      </div>
+
+      <button class="btn btn-primary" style="width: 100%;" onclick="confirmScanAdd()">Approve & Add to Inventory</button>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE = window.API_BASE_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? "http://127.0.0.1:8000/api/v1" : "/api/v1");
+    let token = localStorage.getItem('freshguard_token');
+
+    async function apiRequest(endpoint, options = {}) {
+      const headers = options.headers || {};
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+      if (!headers['Content-Type'] && !(options.body instanceof FormData)) {
+        headers['Content-Type'] = 'application/json';
+      }
+      options.headers = headers;
+
+      try {
+        const response = await fetch(`${API_BASE}${endpoint}`, options);
+        if (response.status === 401) {
+          localStorage.removeItem('freshguard_token');
+          token = null;
+          await autoLogin();
+          return apiRequest(endpoint, options);
+        }
+        if (!response.ok) {
+          const errData = await response.json().catch(() => ({}));
+          throw new Error(errData.detail || `HTTP Error ${response.status}`);
+        }
+        return await response.json();
+      } catch (err) {
+        console.warn(`API error on ${endpoint}:`, err.message);
+        throw err;
+      }
+    }
+
+    async function autoLogin() {
+      try {
+        const res = await fetch(`${API_BASE}/auth/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: 'testuser@freshguard.ai', password: 'securepassword123' })
+        });
+        if (res.ok) {
+          const data = await res.json();
+          token = data.access_token;
+          localStorage.setItem('freshguard_token', token);
+        } else {
+          const regRes = await fetch(`${API_BASE}/auth/register`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              email: 'testuser@freshguard.ai',
+              password: 'securepassword123',
+              full_name: 'Morgan Family',
+              household_name: 'Morgan Kitchen'
+            })
+          });
+          if (regRes.ok) {
+            const data = await regRes.json();
+            token = data.access_token;
+            localStorage.setItem('freshguard_token', token);
+          }
+        }
+      } catch (e) {
+        console.error("Auto-login error:", e);
+      }
+    }
+
+    async function initApp() {
+      if (!token) {
+        await autoLogin();
+      }
+      await loadDashboardData();
+    }
+
+    async function loadDashboardData() {
+      try {
+        const insights = await apiRequest('/ai/insights');
+        if (insights) {
+          document.getElementById('cnt-healthy').innerText = `${insights.healthy_count} Items`;
+          document.getElementById('cnt-expiring').innerText = `${insights.expiring_soon_count} Items`;
+          document.getElementById('cnt-expired').innerText = `${insights.expired_count} Items`;
+          document.getElementById('cnt-low').innerText = `${insights.running_low_count} Items`;
+          if (insights.recent_insight_message) {
+            document.getElementById('ai-insight-text').innerText = `"${insights.recent_insight_message}"`;
+          }
+        }
+      } catch (_) {}
+    }
+
+    async function switchTab(tab) {
+      const view = document.getElementById('app-view');
+      document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+
+      if (tab === 'home') {
+        location.reload();
+      } else if (tab === 'inventory') {
+        view.innerHTML = `
+          <h2 style="font-size: 22px; font-weight: 700; margin-bottom: 12px;">My Kitchen Inventory</h2>
+          <div style="display: flex; gap: 8px; margin-bottom: 16px; overflow-x: auto;">
+            <button class="btn btn-primary" style="padding: 6px 12px; font-size: 12px;" onclick="loadInventory('All')">All</button>
+            <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px;" onclick="loadInventory('Refrigerator')">Fridge</button>
+            <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px;" onclick="loadInventory('Pantry')">Pantry</button>
+          </div>
+          <div id="inventory-list">Loading items from API...</div>
+        `;
+        await loadInventory('All');
+      } else if (tab === 'cart') {
+        view.innerHTML = `
+          <h2 style="font-size: 22px; font-weight: 700; margin-bottom: 8px;">Smart Grocery Cart</h2>
+          <p style="color: var(--text-sub); font-size: 12px; margin-bottom: 16px;">AI Recommendations with Manual User Approval</p>
+          <div id="cart-list">Loading Smart Cart recommendations...</div>
+        `;
+        await loadSmartCart();
+      } else if (tab === 'assistant') {
+        view.innerHTML = `
+          <h2 style="font-size: 22px; font-weight: 700; margin-bottom: 12px;">FreshGuard AI Assistant</h2>
+          <div style="background: var(--surface); padding: 14px; border-radius: 14px; margin-bottom: 12px; border-left: 3px solid var(--emerald);" id="chat-box">
+            <strong style="color: var(--emerald); font-size: 13px;">AI Assistant:</strong>
+            <p style="font-size: 13px; margin-top: 4px;" id="chat-answer">Hello! Ask me what items expire this week, what you should cook first, or why items are recommended!</p>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 16px;">
+            <button class="btn btn-secondary" style="justify-content: flex-start;" onclick="askAIApi('What expires this week?')">What expires this week?</button>
+            <button class="btn btn-secondary" style="justify-content: flex-start;" onclick="askAIApi('What should I cook first?')">What should I cook first?</button>
+            <button class="btn btn-secondary" style="justify-content: flex-start;" onclick="askAIApi('What do I need to buy?')">What do I need to buy?</button>
+          </div>
+        `;
+      }
+    }
+
+    async function loadInventory(loc) {
+      const container = document.getElementById('inventory-list');
+      if (!container) return;
+      try {
+        const query = loc !== 'All' ? `?location=${encodeURIComponent(loc)}` : '';
+        const items = await apiRequest(`/inventory${query}`);
+        if (!items || items.length === 0) {
+          container.innerHTML = `<p style="color: var(--text-sub); font-size: 13px;">No items found in kitchen inventory.</p>`;
+          return;
+        }
+        container.innerHTML = items.map(item => `
+          <div class="item-card">
+            <div>
+              <h4>${item.product_name}</h4>
+              <p>${item.storage_location} • ${item.quantity} ${item.unit}</p>
+            </div>
+            <span class="tag" style="background: rgba(16,185,129,0.2); color: var(--status-healthy);">${item.status}</span>
+          </div>
+        `).join('');
+      } catch (err) {
+        container.innerHTML = `<p style="color: var(--status-expired); font-size: 13px;">Failed to load inventory: ${err.message}</p>`;
+      }
+    }
+
+    async function loadSmartCart() {
+      const container = document.getElementById('cart-list');
+      if (!container) return;
+      try {
+        const cart = await apiRequest('/cart');
+        if (!cart || !cart.items || cart.items.length === 0) {
+          container.innerHTML = `
+            <p style="color: var(--text-sub); font-size: 13px;">Your Smart Cart is currently empty.</p>
+            <button class="btn btn-primary" style="margin-top: 12px;" onclick="loadAIRecommendations()">Generate AI Recommendations</button>
+          `;
+          return;
+        }
+        container.innerHTML = cart.items.map(item => `
+          <div class="item-card">
+            <div>
+              <h4>${item.product_name}</h4>
+              <p>Reason: ${item.reason || 'Smart Refill'}</p>
+              <strong style="color: var(--primary);">₹${item.estimated_price || 65.00}</strong>
+            </div>
+          </div>
+        `).join('') + `
+          <div style="background: var(--surface); padding: 16px; border-radius: 14px; margin-top: 20px;">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 12px;"><span style="color: var(--text-sub);">Estimated Total:</span><strong style="font-size: 20px; color: var(--primary);">₹${cart.total_estimated_price || 0.0}</strong></div>
+            <button class="btn btn-primary" style="width: 100%; font-size: 15px;" onclick="confirmOrderAlert()">Review & Confirm Order</button>
+          </div>
+        `;
+      } catch (err) {
+        container.innerHTML = `<p style="color: var(--status-expired); font-size: 13px;">Error loading cart: ${err.message}</p>`;
+      }
+    }
+
+    async function askAIApi(query) {
+      const ansEl = document.getElementById('chat-answer');
+      if (ansEl) ansEl.innerText = "Thinking...";
+      try {
+        const res = await apiRequest('/ai/assistant', {
+          method: 'POST',
+          body: JSON.stringify({ query: query })
+        });
+        if (ansEl && res && res.answer) {
+          ansEl.innerText = res.answer;
+        }
+      } catch (err) {
+        if (ansEl) ansEl.innerText = `Error connecting to AI Assistant: ${err.message}`;
+      }
+    }
+
+    function openScanModal(type) {
+      document.getElementById('scan-modal').classList.add('active');
+    }
+    function closeModal() {
+      document.getElementById('scan-modal').classList.remove('active');
+    }
+    function confirmScanAdd() {
+      alert("Product approved & added to inventory!");
+      closeModal();
+    }
+    function confirmOrderAlert() {
+      alert("Order approved by user! Refill confirmed successfully.");
+    }
+
+    // Initialize application on load
+    document.addEventListener('DOMContentLoaded', initApp);
+  </script>
+</body>
+</html>

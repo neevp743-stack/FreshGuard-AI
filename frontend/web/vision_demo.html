@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FreshGuard AI — Live Grocery & Vegetable Detection (YOLOv8 V2)</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <style>
+    :root {
+      --bg: #0b0f19;
+      --card-bg: #151c2c;
+      --border: #232d42;
+      --primary: #3b82f6;
+      --emerald: #10b981;
+      --status-expiring: #f59e0b;
+      --status-expired: #ef4444;
+      --text: #f8fafc;
+      --text-sub: #94a3b8;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', system-ui, sans-serif; }
+    body { background: var(--bg); color: var(--text); padding: 24px; display: flex; justify-content: center; }
+
+    .container { max-width: 960px; width: 100%; display: flex; flex-direction: column; gap: 20px; }
+
+    header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 16px; }
+    header h1 { font-size: 22px; font-weight: 700; color: var(--emerald); display: flex; align-items: center; gap: 10px; }
+
+    .controls-card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px; padding: 16px; display: flex; flex-wrap: wrap; gap: 16px; align-items: center; justify-content: space-between; }
+    
+    .btn-group { display: flex; gap: 12px; }
+    .btn { padding: 10px 18px; border-radius: 8px; border: none; font-size: 14px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: 0.2s; }
+    .btn-start { background: var(--emerald); color: #fff; }
+    .btn-start:hover { background: #059669; }
+    .btn-stop { background: var(--status-expired); color: #fff; }
+    .btn-stop:hover { background: #dc2626; }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .slider-group { display: flex; gap: 20px; flex-wrap: wrap; }
+    .slider-item { display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: var(--text-sub); }
+    .slider-item input { accent-color: var(--emerald); width: 130px; }
+
+    .main-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 20px; }
+    @media (max-width: 768px) { .main-grid { grid-template-columns: 1fr; } }
+
+    .video-card { background: #000; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; position: relative; min-height: 480px; display: flex; justify-content: center; align-items: center; }
+    video { width: 100%; height: 100%; object-fit: cover; display: block; }
+    canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
+
+    .hud-bar { position: absolute; top: 12px; left: 12px; right: 12px; background: rgba(11, 15, 25, 0.85); backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 10px 16px; display: flex; justify-content: space-between; font-size: 13px; font-weight: 600; }
+    .hud-stat { display: flex; align-items: center; gap: 6px; }
+    .hud-val { color: var(--emerald); font-family: monospace; font-size: 15px; }
+
+    .side-panel { display: flex; flex-direction: column; gap: 16px; }
+    .panel-card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px; padding: 16px; }
+    .panel-card h3 { font-size: 15px; font-weight: 600; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+
+    .item-tags { display: flex; flex-wrap: wrap; gap: 8px; }
+    .tag-item { background: rgba(16, 185, 129, 0.15); border: 1px solid var(--emerald); color: var(--emerald); padding: 6px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+    .empty-state { font-size: 12px; color: var(--text-sub); font-style: italic; }
+
+    .validation-form { display: flex; flex-direction: column; gap: 10px; font-size: 13px; }
+    .validation-form label { color: var(--text-sub); font-size: 12px; }
+    .validation-form select { background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 8px; border-radius: 6px; }
+    
+    .status-badge { display: inline-block; padding: 6px 12px; border-radius: 6px; font-weight: 700; font-size: 12px; text-align: center; margin-top: 4px; }
+    .status-pass { background: rgba(16, 185, 129, 0.2); color: var(--emerald); border: 1px solid var(--emerald); }
+    .status-fail { background: rgba(239, 68, 68, 0.2); color: var(--status-expired); border: 1px solid var(--status-expired); }
+    .status-none { background: rgba(148, 163, 184, 0.2); color: var(--text-sub); border: 1px solid var(--text-sub); }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1><i class="fa-solid fa-camera-rotate"></i> FreshGuard AI — Live Vision (YOLOv8 V2)</h1>
+      <span style="font-size: 12px; background: rgba(59,130,246,0.2); color: var(--primary); padding: 4px 10px; border-radius: 12px; border: 1px solid var(--primary);">35 Target Classes Active</span>
+    </header>
+
+    <div class="controls-card">
+      <div class="btn-group">
+        <button class="btn btn-start" id="start-cam-btn" onclick="startCamera()"><i class="fa-solid fa-play"></i> START CAMERA</button>
+        <button class="btn btn-stop" id="stop-cam-btn" onclick="stopCamera()" disabled><i class="fa-solid fa-stop"></i> STOP CAMERA</button>
+      </div>
+
+      <div class="slider-group">
+        <div class="slider-item">
+          <label>Confidence Threshold: <strong id="conf-val">0.25</strong></label>
+          <input type="range" id="conf-slider" min="0.10" max="0.90" step="0.05" value="0.25" oninput="document.getElementById('conf-val').innerText = this.value">
+        </div>
+        <div class="slider-item">
+          <label>IoU Threshold: <strong id="iou-val">0.45</strong></label>
+          <input type="range" id="iou-slider" min="0.10" max="0.90" step="0.05" value="0.45" oninput="document.getElementById('iou-val').innerText = this.value">
+        </div>
+      </div>
+    </div>
+
+    <div class="main-grid">
+      <div class="video-card">
+        <video id="webcam-video" autoplay playsinline muted></video>
+        <canvas id="overlay-canvas"></canvas>
+
+        <div class="hud-bar">
+          <div class="hud-stat"><i class="fa-solid fa-cubes"></i> Objects: <span class="hud-val" id="hud-objects">0</span></div>
+          <div class="hud-stat"><i class="fa-solid fa-bolt"></i> FPS: <span class="hud-val" id="hud-fps">0.0</span></div>
+          <div class="hud-stat"><i class="fa-solid fa-stopwatch"></i> Latency: <span class="hud-val" id="hud-latency">0 ms</span></div>
+        </div>
+      </div>
+
+      <div class="side-panel">
+        <div class="panel-card">
+          <h3><i class="fa-solid fa-basket-shopping" style="color: var(--emerald);"></i> Detected Items</h3>
+          <div class="item-tags" id="detected-items-list">
+            <span class="empty-state">Start camera to detect grocery items</span>
+          </div>
+        </div>
+
+        <div class="panel-card">
+          <h3><i class="fa-solid fa-clipboard-check" style="color: var(--primary);"></i> Validation Panel</h3>
+          <div class="validation-form">
+            <label>Expected Target Class:</label>
+            <select id="val-expected-select">
+              <option value="carrot">carrot (15)</option>
+              <option value="tomato">tomato (5)</option>
+              <option value="potato">potato (6)</option>
+              <option value="onion">onion (7)</option>
+              <option value="capsicum">capsicum (18)</option>
+              <option value="cucumber">cucumber (19)</option>
+              <option value="cauliflower">cauliflower (17)</option>
+              <option value="brinjal">brinjal (20)</option>
+              <option value="broccoli">broccoli (21)</option>
+              <option value="cabbage">cabbage (16)</option>
+              <option value="spinach">spinach (22)</option>
+              <option value="peas">peas (23)</option>
+              <option value="corn">corn (24)</option>
+              <option value="garlic">garlic (25)</option>
+              <option value="ginger">ginger (26)</option>
+              <option value="okra">okra (27)</option>
+              <option value="beetroot">beetroot (28)</option>
+              <option value="radish">radish (29)</option>
+              <option value="pumpkin">pumpkin (30)</option>
+              <option value="bitter_gourd">bitter_gourd (31)</option>
+              <option value="bottle_gourd">bottle_gourd (32)</option>
+              <option value="green_chilli">green_chilli (33)</option>
+              <option value="sweet_potato">sweet_potato (34)</option>
+              <option value="milk">milk (0)</option>
+              <option value="bread">bread (1)</option>
+              <option value="apple">apple (2)</option>
+              <option value="banana">banana (3)</option>
+              <option value="egg">egg (4)</option>
+              <option value="rice">rice (8)</option>
+              <option value="yogurt">yogurt (9)</option>
+              <option value="cheese">cheese (10)</option>
+              <option value="biscuit">biscuit (11)</option>
+              <option value="juice">juice (12)</option>
+              <option value="water">water (13)</option>
+              <option value="packaged_snack">packaged_snack (14)</option>
+            </select>
+
+            <label>Actual Inference Match:</label>
+            <div id="val-actual-detection" style="font-weight: 600; color: var(--emerald);">None</div>
+
+            <label>Confidence Score:</label>
+            <div id="val-confidence" style="font-family: monospace;">0.00</div>
+
+            <div id="val-status-badge" class="status-badge status-none">NOT DETECTED</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE = window.API_BASE_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? "http://127.0.0.1:8000/api/v1" : "/api/v1");
+
+    let videoElem = document.getElementById('webcam-video');
+    let canvasElem = document.getElementById('overlay-canvas');
+    let ctx = canvasElem.getContext('2d');
+    
+    let mediaStream = null;
+    let isRunning = false;
+    let isProcessingFrame = false;
+    let frameTimer = null;
+    let lastFrameTime = performance.now();
+
+    async function startCamera() {
+      try {
+        mediaStream = await navigator.mediaDevices.getUserMedia({
+          video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: "environment" }
+        });
+        videoElem.srcObject = mediaStream;
+        await videoElem.play();
+
+        canvasElem.width = videoElem.videoWidth || 640;
+        canvasElem.height = videoElem.videoHeight || 480;
+
+        isRunning = true;
+        document.getElementById('start-cam-btn').disabled = true;
+        document.getElementById('stop-cam-btn').disabled = false;
+
+        scheduleFrameProcessing();
+      } catch (err) {
+        alert("Unable to access camera: " + err.message + "\n\nPlease allow browser camera permissions.");
+      }
+    }
+
+    function stopCamera() {
+      isRunning = false;
+      if (frameTimer) clearTimeout(frameTimer);
+
+      if (mediaStream) {
+        mediaStream.getTracks().forEach(track => track.stop());
+        mediaStream = null;
+      }
+      videoElem.srcObject = null;
+      ctx.clearRect(0, 0, canvasElem.width, canvasElem.height);
+
+      document.getElementById('start-cam-btn').disabled = false;
+      document.getElementById('stop-cam-btn').disabled = true;
+
+      document.getElementById('hud-objects').innerText = '0';
+      document.getElementById('hud-fps').innerText = '0.0';
+      document.getElementById('hud-latency').innerText = '0 ms';
+      document.getElementById('detected-items-list').innerHTML = '<span class="empty-state">Camera stopped</span>';
+    }
+
+    function scheduleFrameProcessing() {
+      if (!isRunning) return;
+      frameTimer = setTimeout(async () => {
+        if (!isProcessingFrame && videoElem.readyState === 4) {
+          await captureAndInferFrame();
+        }
+        scheduleFrameProcessing();
+      }, 150); // Process frame every ~150ms
+    }
+
+    async function captureAndInferFrame() {
+      isProcessingFrame = true;
+      const t0 = performance.now();
+
+      try {
+        // Draw video frame to temporary offscreen canvas
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = videoElem.videoWidth || 640;
+        tempCanvas.height = videoElem.videoHeight || 480;
+        const tempCtx = tempCanvas.getContext('2d');
+        tempCtx.drawImage(videoElem, 0, 0, tempCanvas.width, tempCanvas.height);
+
+        const dataUrl = tempCanvas.toDataURL('image/jpeg', 0.85);
+
+        const confVal = parseFloat(document.getElementById('conf-slider').value);
+        const iouVal = parseFloat(document.getElementById('iou-slider').value);
+
+        // Call real server-side V2 inference endpoint
+        const res = await fetch(`${API_BASE}/scanner/vision/detect_v2?conf=${confVal}&iou=${iouVal}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ image_base64: dataUrl })
+        });
+
+        const data = await res.json();
+        const t1 = performance.now();
+        const fps = (1000 / Math.max(t1 - lastFrameTime, 1)).toFixed(1);
+        lastFrameTime = t1;
+
+        if (data.success && Array.isArray(data.detections)) {
+          renderDetections(data.detections, tempCanvas.width, tempCanvas.height);
+          updateHUD(data.count, fps, data.inference_ms);
+          updateItemList(data.detections);
+          updateValidationPanel(data.detections);
+        } else {
+          showErrorState(data.message || "Vision inference unavailable");
+        }
+      } catch (err) {
+        showErrorState("Vision inference unavailable");
+      } finally {
+        isProcessingFrame = false;
+      }
+    }
+
+    function renderDetections(detections, vidW, vidH) {
+      canvasElem.width = videoElem.clientWidth || vidW;
+      canvasElem.height = videoElem.clientHeight || vidH;
+      ctx.clearRect(0, 0, canvasElem.width, canvasElem.height);
+
+      const scaleX = canvasElem.width / vidW;
+      const scaleY = canvasElem.height / vidH;
+
+      detections.forEach(det => {
+        const [x1, y1, x2, y2] = det.bbox;
+        const sx1 = x1 * scaleX;
+        const sy1 = y1 * scaleY;
+        const sw = (x2 - x1) * scaleX;
+        const sh = (y2 - y1) * scaleY;
+
+        // Draw bounding box
+        ctx.strokeStyle = '#10b981';
+        ctx.lineWidth = 3;
+        ctx.strokeRect(sx1, sy1, sw, sh);
+
+        // Draw label background
+        const labelText = `${det.class_name} ${(det.confidence * 100).toFixed(0)}%`;
+        ctx.font = '600 13px Inter, sans-serif';
+        const textWidth = ctx.measureText(labelText).width;
+
+        ctx.fillStyle = '#10b981';
+        ctx.fillRect(sx1, Math.max(sy1 - 22, 0), textWidth + 12, 22);
+
+        // Draw label text
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText(labelText, sx1 + 6, Math.max(sy1 - 6, 16));
+      });
+    }
+
+    function updateHUD(count, fps, latencyMs) {
+      document.getElementById('hud-objects').innerText = count;
+      document.getElementById('hud-fps').innerText = fps;
+      document.getElementById('hud-latency').innerText = `${latencyMs} ms`;
+    }
+
+    function updateItemList(detections) {
+      const container = document.getElementById('detected-items-list');
+      if (detections.length === 0) {
+        container.innerHTML = '<span class="empty-state">No items in view</span>';
+        return;
+      }
+
+      const uniqueClasses = [...new Set(detections.map(d => d.class_name))];
+      container.innerHTML = uniqueClasses.map(c => `<span class="tag-item">${c}</span>`).join('');
+    }
+
+    function updateValidationPanel(detections) {
+      const expectedClass = document.getElementById('val-expected-select').value;
+      const match = detections.find(d => d.class_name.toLowerCase() === expectedClass.toLowerCase());
+
+      const actualElem = document.getElementById('val-actual-detection');
+      const confElem = document.getElementById('val-confidence');
+      const badgeElem = document.getElementById('val-status-badge');
+
+      if (match) {
+        actualElem.innerText = match.class_name;
+        confElem.innerText = (match.confidence * 100).toFixed(1) + '%';
+        badgeElem.innerText = 'PASS ✅';
+        badgeElem.className = 'status-badge status-pass';
+      } else if (detections.length > 0) {
+        actualElem.innerText = detections[0].class_name;
+        confElem.innerText = (detections[0].confidence * 100).toFixed(1) + '%';
+        badgeElem.innerText = 'FAIL (MISMATCH)';
+        badgeElem.className = 'status-badge status-fail';
+      } else {
+        actualElem.innerText = 'None';
+        confElem.innerText = '0.0%';
+        badgeElem.innerText = 'NOT DETECTED';
+        badgeElem.className = 'status-badge status-none';
+      }
+    }
+
+    function showErrorState(msg) {
+      ctx.clearRect(0, 0, canvasElem.width, canvasElem.height);
+      document.getElementById('hud-objects').innerText = '0';
+      document.getElementById('hud-fps').innerText = '0.0';
+      document.getElementById('hud-latency').innerText = '0 ms';
+      document.getElementById('detected-items-list').innerHTML = `<span class="empty-state" style="color: var(--status-expired);">${msg}</span>`;
+    }
+  </script>
+</body>
+</html>
