@@ -67,7 +67,9 @@ def run_vision_inference(image_bytes: bytes) -> VisionDetectResponse:
     if not status.model_available:
         return VisionDetectResponse(
             success=False,
+            lifecycle_state=status.lifecycle_state,
             model_version=status.model_version,
+            confidence_threshold=status.confidence_threshold,
             image_width=0,
             image_height=0,
             detections=[],
@@ -97,12 +99,14 @@ def run_vision_inference(image_bytes: bytes) -> VisionDetectResponse:
                     class_id=cls_id,
                     class_name=cls_name,
                     confidence=round(conf, 3),
-                    bbox=[round(c, 1) for c in xyxy]
+                    bounding_box={"x1": round(xyxy[0], 1), "y1": round(xyxy[1], 1), "x2": round(xyxy[2], 1), "y2": round(xyxy[3], 1)}
                 ))
 
         return VisionDetectResponse(
             success=True,
+            lifecycle_state=status.lifecycle_state,
             model_version=status.model_version,
+            confidence_threshold=status.confidence_threshold,
             image_width=640,
             image_height=640,
             detections=detections,
@@ -112,7 +116,9 @@ def run_vision_inference(image_bytes: bytes) -> VisionDetectResponse:
         logger.error(f"Production vision inference error: {ex}")
         return VisionDetectResponse(
             success=False,
+            lifecycle_state=status.lifecycle_state,
             model_version=status.model_version,
+            confidence_threshold=status.confidence_threshold,
             image_width=0,
             image_height=0,
             detections=[],
