@@ -16,12 +16,11 @@ datasets/_acquisition/
 datasets/_vegetable_acquisition/
 datasets/real_world_test/
 
-# Trained Model Binaries
-vision_models/*.pt
-vision_models/*.onnx
-vision_models/experiments/*/weights/
-vision_models/deployment/*/*.pt
-vision_models/deployment/*/*.onnx
+# Trained Model Binaries (Exclude all .pt and .onnx binaries)
+*.pt
+*.onnx
+vision_models/**/*.pt
+vision_models/**/*.onnx
 !vision_models/model_metadata.json
 
 # Flutter & IDE
