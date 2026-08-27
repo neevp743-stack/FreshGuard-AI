@@ -73,7 +73,7 @@ def run_vision_inference(image_bytes: bytes) -> VisionDetectResponse:
             image_width=0,
             image_height=0,
             detections=[],
-            message="Production vision inference unavailable: Production model baseline is NOT_TRAINED."
+            message=f"Production vision inference unavailable: {status.message}"
         )
 
     tmp_path = None
