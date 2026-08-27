@@ -2,22 +2,22 @@
   "version": 2,
   "name": "freshguard-ai-frontend",
   "cleanUrls": true,
-  "routes": [
+  "rewrites": [
     {
-      "src": "/vision_demo.html",
-      "dest": "/web/vision_demo.html"
+      "source": "/vision_demo.html",
+      "destination": "/web/vision_demo.html"
     },
     {
-      "src": "/vision_demo",
-      "dest": "/web/vision_demo.html"
+      "source": "/vision_demo",
+      "destination": "/web/vision_demo.html"
     },
     {
-      "src": "/index.html",
-      "dest": "/web/index.html"
+      "source": "/index.html",
+      "destination": "/web/index.html"
     },
     {
-      "src": "/",
-      "dest": "/web/index.html"
+      "source": "/",
+      "destination": "/web/index.html"
     }
   ]
 }
