@@ -135,25 +135,73 @@ def run_vision_inference(image_bytes: bytes) -> VisionDetectResponse:
 V2_WEIGHTS_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../../vision_models/experiments/grocery_yolov8_v2/weights/best.pt"))
 V2_ONNX_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../../vision_models/deployment/grocery_yolov8_v2_web/model.onnx"))
 
-_LAST_ONNX_ERROR = None
+_ONNX_SESSION_CACHE = None
 
-def _run_onnxruntime_v2_inference(image_bytes: bytes, conf_threshold: float = 0.25, iou_threshold: float = 0.45) -> Optional[Dict[str, Any]]:
+def get_onnx_session():
+    global _ONNX_SESSION_CACHE
+    if _ONNX_SESSION_CACHE is None and os.path.exists(V2_ONNX_PATH):
+        import onnxruntime as ort
+        logger.info(f"Initializing ONNX Runtime session with CPUExecutionProvider from: {V2_ONNX_PATH}")
+        _ONNX_SESSION_CACHE = ort.InferenceSession(V2_ONNX_PATH, providers=['CPUExecutionProvider'])
+    return _ONNX_SESSION_CACHE
+
+def _nms_boxes(boxes_xyxy: np.ndarray, scores: np.ndarray, iou_thresh: float) -> List[int]:
+    if len(boxes_xyxy) == 0:
+        return []
+    x1 = boxes_xyxy[:, 0]
+    y1 = boxes_xyxy[:, 1]
+    x2 = boxes_xyxy[:, 2]
+    y2 = boxes_xyxy[:, 3]
+    areas = (x2 - x1) * (y2 - y1)
+    order = scores.argsort()[::-1]
+    keep = []
+    while order.size > 0:
+        i = order[0]
+        keep.append(i)
+        xx1 = np.maximum(x1[i], x1[order[1:]])
+        yy1 = np.maximum(y1[i], y1[order[1:]])
+        xx2 = np.minimum(x2[i], x2[order[1:]])
+        yy2 = np.minimum(y2[i], y2[order[1:]])
+        w = np.maximum(0.0, xx2 - xx1)
+        h = np.maximum(0.0, yy2 - yy1)
+        inter = w * h
+        ovr = inter / (areas[i] + areas[order[1:]] - inter + 1e-6)
+        inds = np.where(ovr <= iou_thresh)[0]
+        order = order[inds + 1]
+    return keep
+
+def _run_onnxruntime_v2_inference(image_bytes: bytes, conf_threshold: float = 0.25, iou_threshold: float = 0.45) -> Dict[str, Any]:
     """
     Executes ONNX Runtime inference using exported 35-class model.onnx artifact.
     Bypasses PyTorch C++ NumPy binding dependencies cleanly on Linux runtimes.
     """
-    global _LAST_ONNX_ERROR
     if not os.path.exists(V2_ONNX_PATH):
-        _LAST_ONNX_ERROR = f"V2_ONNX_PATH does not exist: '{V2_ONNX_PATH}'"
-        return None
+        return {
+            "success": False,
+            "model": "grocery_yolov8_v2",
+            "detections": [],
+            "count": 0,
+            "inference_ms": 0.0,
+            "message": f"ONNX Runtime V2 error: File not found at '{V2_ONNX_PATH}'"
+        }
 
     try:
         import io
         import time
-        import onnxruntime as ort
         from PIL import Image
 
         t_start = time.perf_counter()
+
+        session = get_onnx_session()
+        if session is None:
+            return {
+                "success": False,
+                "model": "grocery_yolov8_v2",
+                "detections": [],
+                "count": 0,
+                "inference_ms": 0.0,
+                "message": "ONNX Runtime session initialization failed."
+            }
 
         img = Image.open(io.BytesIO(image_bytes)).convert('RGB')
         orig_w, orig_h = img.size
@@ -164,7 +212,6 @@ def _run_onnxruntime_v2_inference(image_bytes: bytes, conf_threshold: float = 0.
         img_np = np.transpose(img_np, (2, 0, 1))  # HWC to CHW
         img_np = np.expand_dims(img_np, axis=0)   # Add batch dimension [1, 3, 640, 640]
 
-        session = ort.InferenceSession(V2_ONNX_PATH)
         input_name = session.get_inputs()[0].name
         outputs = session.run(None, {input_name: img_np})
 
@@ -190,32 +237,51 @@ def _run_onnxruntime_v2_inference(image_bytes: bytes, conf_threshold: float = 0.
         filtered_scores = max_scores[mask]
         filtered_class_ids = class_ids[mask]
 
-        detections = []
+        if len(filtered_scores) == 0:
+            t_end = time.perf_counter()
+            return {
+                "success": True,
+                "model": "grocery_yolov8_v2",
+                "detections": [],
+                "count": 0,
+                "inference_ms": round((t_end - t_start) * 1000, 1),
+                "message": "Real V2 ONNX detection complete. Found 0 object(s)."
+            }
+
+        # Convert xc,yc,w,h to x1,y1,x2,y2 for NMS
         scale_x = orig_w / 640.0
         scale_y = orig_h / 640.0
 
-        for i in range(len(filtered_scores)):
-            xc, yc, w, h = filtered_boxes[:, i]
-            conf = float(filtered_scores[i])
-            cls_id = int(filtered_class_ids[i])
+        xc = filtered_boxes[0, :]
+        yc = filtered_boxes[1, :]
+        w = filtered_boxes[2, :]
+        h = filtered_boxes[3, :]
+
+        x1_arr = (xc - w / 2.0) * scale_x
+        y1_arr = (yc - h / 2.0) * scale_y
+        x2_arr = (xc + w / 2.0) * scale_x
+        y2_arr = (yc + h / 2.0) * scale_y
+
+        boxes_xyxy = np.column_stack((x1_arr, y1_arr, x2_arr, y2_arr))
+        keep_indices = _nms_boxes(boxes_xyxy, filtered_scores, iou_threshold)
+
+        detections = []
+        for idx in keep_indices:
+            conf = float(filtered_scores[idx])
+            cls_id = int(filtered_class_ids[idx])
             cls_name = class_names[cls_id] if cls_id < len(class_names) else f"class_{cls_id}"
 
-            x1 = round((xc - w / 2.0) * scale_x, 1)
-            y1 = round((yc - h / 2.0) * scale_y, 1)
-            x2 = round((xc + w / 2.0) * scale_x, 1)
-            y2 = round((yc + h / 2.0) * scale_y, 1)
-
+            box = boxes_xyxy[idx]
             detections.append({
                 "class_id": cls_id,
                 "class_name": cls_name,
-                "confidence": round(conf, 3),
-                "bbox": [x1, y1, x2, y2]
+                "confidence": float(round(conf, 3)),
+                "bbox": [float(round(box[0], 1)), float(round(box[1], 1)), float(round(box[2], 1)), float(round(box[3], 1))]
             })
 
         t_end = time.perf_counter()
         inference_ms = round((t_end - t_start) * 1000, 1)
 
-        _LAST_ONNX_ERROR = None
         return {
             "success": True,
             "model": "grocery_yolov8_v2",
@@ -225,9 +291,15 @@ def _run_onnxruntime_v2_inference(image_bytes: bytes, conf_threshold: float = 0.
             "message": f"Real V2 ONNX detection complete. Found {len(detections)} object(s)."
         }
     except Exception as ex:
-        _LAST_ONNX_ERROR = f"ONNX Runtime error [{type(ex).__name__}]: {ex}"
-        logger.warning(f"ONNX Runtime V2 fallback error: {ex}")
-        return None
+        logger.error(f"ONNX Runtime V2 inference error: {ex}")
+        return {
+            "success": False,
+            "model": "grocery_yolov8_v2",
+            "detections": [],
+            "count": 0,
+            "inference_ms": 0.0,
+            "message": f"ONNX Runtime V2 error [{type(ex).__name__}]: {ex}"
+        }
 
 def run_experimental_v2_inference(image_bytes: bytes, conf_threshold: float = 0.25, iou_threshold: float = 0.45) -> Dict[str, Any]:
     """
