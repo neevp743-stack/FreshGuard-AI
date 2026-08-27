@@ -1,0 +1,423 @@
+import pytest
+import io
+from PIL import Image
+from fastapi.testclient import TestClient
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from datetime import datetime, timedelta
+
+from app.core.database import Base, get_db
+from app.core.security import hash_password
+from app.models.models import User, Household, HouseholdMember, Inventory, ConsumptionLog, Notification, DeviceToken, UserPreference
+from app.services.scanner import lookup_barcode
+from app.ai.ocr import parse_package_ocr_text
+from app.services.ocr_image import process_raw_image_ocr
+from app.services.notifications import evaluate_and_generate_notifications
+from app.ai.consumption import predict_item_consumption
+from main import app
+
+# Setup isolated test database
+SQLALCHEMY_DATABASE_URL = "sqlite:///./test_freshguard.db"
+engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False})
+TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+def override_get_db():
+    try:
+        db = TestingSessionLocal()
+        yield db
+    finally:
+        db.close()
+
+app.dependency_overrides[get_db] = override_get_db
+
+client = TestClient(app)
+
+@pytest.fixture(autouse=True)
+def setup_db():
+    Base.metadata.create_all(bind=engine)
+    yield
+    Base.metadata.drop_all(bind=engine)
+
+# ==================== EXISTING CORE TESTS ====================
+
+def test_auth_register_and_login():
+    res = client.post("/api/auth/register", json={
+        "email": "testuser@freshguard.ai",
+        "password": "securepassword123",
+        "full_name": "Test User",
+        "household_name": "Test Home"
+    })
+    assert res.status_code == 200
+    data = res.json()
+    assert "access_token" in data
+    assert data["email"] == "testuser@freshguard.ai"
+
+    login_res = client.post("/api/auth/login", json={
+        "email": "testuser@freshguard.ai",
+        "password": "securepassword123"
+    })
+    assert login_res.status_code == 200
+    assert "access_token" in login_res.json()
+
+def test_unauthorized_access():
+    res = client.get("/api/inventory")
+    assert res.status_code == 401
+
+def test_add_and_delete_product():
+    reg = client.post("/api/auth/register", json={"email": "invuser@freshguard.ai", "password": "pass"})
+    token = reg.json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    add_res = client.post("/api/inventory", json={
+        "product_name": "Fresh Organic Milk",
+        "category": "Dairy",
+        "quantity": 2.0,
+        "unit": "L",
+        "storage_location": "Refrigerator"
+    }, headers=headers)
+    assert add_res.status_code == 200
+    item_id = add_res.json()["id"]
+
+    del_res = client.delete(f"/api/inventory/{item_id}", headers=headers)
+    assert del_res.status_code == 200
+    assert del_res.json()["status"] == "success"
+
+def test_expiry_calculation_and_expired_item():
+    db = TestingSessionLocal()
+    now = datetime.utcnow()
+    
+    item_expired = Inventory(
+        user_id=1, household_id=1, product_name="Old Cottage Cheese",
+        quantity=1.0, unit="pcs", category="Dairy",
+        expiry_date=now - timedelta(days=2), status="Expired"
+    )
+    db.add(item_expired)
+    db.commit()
+
+    assert item_expired.status == "Expired"
+    db.close()
+
+def test_barcode_lookup():
+    res = lookup_barcode("8901058000147")
+    assert res.found is True
+    assert "Amul Taaza" in res.product_name
+
+def test_ocr_parsing():
+    ocr_input = "Amul Pure Butter\nEXP: 20/08/2026\nBATCH: B-9981"
+    res = parse_package_ocr_text(ocr_input)
+    assert res.detected is True
+    assert res.expiry_date == "20/08/2026"
+    assert res.confidence_score > 70.0
+
+def test_consumption_prediction_and_reorder():
+    db = TestingSessionLocal()
+    now = datetime.utcnow()
+    item = Inventory(
+        user_id=1, household_id=1, product_name="Test Milk",
+        quantity=0.5, unit="L", category="Dairy", status="Running Low"
+    )
+    db.add(item)
+    db.commit()
+
+    log = ConsumptionLog(
+        household_id=1, inventory_id=item.id, product_name="Test Milk",
+        quantity_consumed=1.0, unit="L", date_consumed=now - timedelta(days=2), log_type="consumed"
+    )
+    db.add(log)
+    db.commit()
+
+    pred = predict_item_consumption(item, db)
+    assert pred.product_name == "Test Milk"
+    db.close()
+
+# ==================== PHASE 2 IMAGE OCR & NOTIFICATION TESTS ====================
+
+def test_ocr_image_endpoint_valid():
+    reg = client.post("/api/auth/register", json={"email": "imguser@freshguard.ai", "password": "pass"})
+    token = reg.json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    buf = io.BytesIO()
+    img = Image.new('RGB', (200, 200), color=(255, 255, 255))
+    img.save(buf, format='JPEG')
+    buf.seek(0)
+
+    files = {"file": ("test_package.jpg", buf, "image/jpeg")}
+
+    res = client.post("/api/scanner/ocr/image", files=files, headers=headers)
+    assert res.status_code == 200
+    data = res.json()
+    assert data["success"] is True
+    assert "raw_text" in data
+
+def test_ocr_image_invalid_file_type():
+    res = process_raw_image_ocr(b"hello world", content_type="text/plain")
+    assert res.success is False
+    assert "Invalid file type" in res.message
+
+def test_ocr_image_oversized_file():
+    huge_bytes = b"0" * (11 * 1024 * 1024)
+    res = process_raw_image_ocr(huge_bytes, content_type="image/jpeg")
+    assert res.success is False
+    assert "exceeds maximum limit" in res.message
+
+def test_ocr_date_extraction_parsing():
+    raw = "AMUL MILK\nEXP: 2O/08/2026\nBATCH B-102"
+    parsed = parse_package_ocr_text(raw)
+    assert parsed.detected is True
+    assert parsed.expiry_date == "20/08/2026"
+
+def test_ocr_ambiguous_expiry_date():
+    raw = "Generic Snack Box\nNO EXPIRY DATE VISIBLE"
+    parsed = parse_package_ocr_text(raw)
+    assert parsed.detected is True
+    assert parsed.confidence_score <= 80.0
+
+def test_unknown_barcode_fallback():
+    res = lookup_barcode("99988877766611")
+    assert res.found is False
+    assert res.barcode == "99988877766611"
+
+def test_device_token_registration():
+    reg = client.post("/api/auth/register", json={"email": "devtoken@freshguard.ai", "password": "pass"})
+    token = reg.json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    res = client.post("/api/notifications/device-token", json={
+        "token": "fcm_test_device_token_abc123",
+        "platform": "android"
+    }, headers=headers)
+    assert res.status_code == 200
+    data = res.json()
+    assert data["token"] == "fcm_test_device_token_abc123"
+    assert data["platform"] == "android"
+    assert data["is_active"] is True
+
+def test_notification_creation_and_deduplication():
+    db = TestingSessionLocal()
+    now = datetime.utcnow()
+
+    u = User(email="notifuser@freshguard.ai", password_hash="pass")
+    db.add(u)
+    db.commit()
+    db.refresh(u)
+
+    inv = Inventory(
+        user_id=u.id, household_id=1, product_name="Expiring Milk",
+        quantity=1.0, unit="L", category="Dairy",
+        expiry_date=now + timedelta(days=1), status="Expiring Soon"
+    )
+    db.add(inv)
+    db.commit()
+
+    evaluate_and_generate_notifications(u.id, 1, db)
+    notifs = db.query(Notification).filter(Notification.user_id == u.id).all()
+    assert len(notifs) >= 1
+
+    count_before = len(notifs)
+    evaluate_and_generate_notifications(u.id, 1, db)
+    count_after = db.query(Notification).filter(Notification.user_id == u.id).count()
+    assert count_after == count_before
+    db.close()
+
+def test_user_notification_preferences_filtering():
+    db = TestingSessionLocal()
+    now = datetime.utcnow()
+
+    u = User(email="prefuser@freshguard.ai", password_hash="pass")
+    db.add(u)
+    db.commit()
+    db.refresh(u)
+
+    pref = UserPreference(user_id=u.id, expiry_alert_enabled=False)
+    db.add(pref)
+
+    inv = Inventory(
+        user_id=u.id, household_id=99, product_name="Test Item",
+        quantity=1.0, unit="pcs", category="Dairy",
+        expiry_date=now + timedelta(days=1), status="Expiring Soon"
+    )
+    db.add(inv)
+    db.commit()
+
+    evaluate_and_generate_notifications(u.id, 99, db)
+    notifs = db.query(Notification).filter(Notification.user_id == u.id, Notification.type == "EXPIRING_SOON").all()
+    assert len(notifs) == 0
+    db.close()
+
+def test_unauthorized_device_token_registration():
+    res = client.post("/api/notifications/device-token", json={
+        "token": "unauth_token_123",
+        "platform": "android"
+    })
+    assert res.status_code == 401
+
+# ==================== NEW PHASE 3 VISION AI & MULTIMODAL TESTS ====================
+
+def test_vision_status_endpoint():
+    res = client.get("/api/scanner/vision/status")
+    assert res.status_code == 200
+    data = res.json()
+    assert "lifecycle_state" in data
+    assert data["lifecycle_state"] == "NOT_TRAINED"
+    assert data["model_available"] is False
+    assert data["classes_count"] == 15
+    assert data["confidence_threshold"] == 0.50
+
+def test_vision_detect_no_model_graceful():
+    buf = io.BytesIO()
+    img = Image.new('RGB', (200, 200), color=(255, 255, 255))
+    img.save(buf, format='JPEG')
+    buf.seek(0)
+
+    files = {"file": ("fridge_test.jpg", buf, "image/jpeg")}
+    res = client.post("/api/scanner/vision/detect", files=files)
+    assert res.status_code == 200
+    data = res.json()
+    assert data["success"] is False
+    assert data["lifecycle_state"] == "NOT_TRAINED"
+    assert data["detections"] == []
+    assert "pending the real grocery dataset" in data["message"]
+
+def test_vision_feedback_privacy_first():
+    reg = client.post("/api/auth/register", json={"email": "visionfb@freshguard.ai", "password": "pass"})
+    token = reg.json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    res = client.post("/api/scanner/vision/feedback", json={
+        "predicted_class": "banana",
+        "confidence": 0.62,
+        "corrected_class": "apple",
+        "opt_in_image_retention": False,
+        "comments": "User corrected prediction"
+    }, headers=headers)
+    assert res.status_code == 200
+    assert res.json()["status"] == "success"
+
+def test_multimodal_barcode_vision_conflict_flagging():
+    # Test barcode lookup priority and conflict handling
+    res = client.post("/api/scanner/vision/multimodal?barcode=8901058000147")
+    assert res.status_code == 200
+    data = res.json()
+    assert data["barcode_identity"] is not None
+    assert "Amul Taaza" in data["final_suggested_item"]["product_name"]
+
+# ==================== PRODUCTION READINESS & HARDENING TESTS ====================
+
+def test_pbkdf2_password_hashing_and_legacy_migration():
+    db = TestingSessionLocal()
+    from app.core.security import hash_password, verify_and_migrate_password
+
+    # Test PBKDF2 hash creation format
+    pwd = "SecretPassword!2026"
+    hashed = hash_password(pwd)
+    assert hashed.startswith("pbkdf2_sha256$")
+
+    valid, needs_rehash = verify_and_migrate_password(pwd, hashed)
+    assert valid is True
+    assert needs_rehash is False
+
+    # Test legacy SHA256 migration
+    import hashlib
+    from app.core.config import settings
+    legacy_salted = f"{settings.SECRET_KEY}:{pwd}".encode('utf-8')
+    legacy_hash = hashlib.sha256(legacy_salted).hexdigest()
+
+    legacy_valid, legacy_needs_rehash = verify_and_migrate_password(pwd, legacy_hash)
+    assert legacy_valid is True
+    assert legacy_needs_rehash is True
+    db.close()
+
+def test_lightweight_health_endpoints():
+    # Root /health
+    res1 = client.get("/health")
+    assert res1.status_code == 200
+    d1 = res1.json()
+    assert d1["status"] == "READY"
+    assert d1["process_alive"] is True
+    assert d1["database_connected"] is True
+
+    # Versioned /api/v1/health
+    res2 = client.get("/api/v1/health")
+    assert res2.status_code == 200
+    d2 = res2.json()
+    assert d2["status"] == "READY"
+
+def test_rbac_user_admin_access_control():
+    db = TestingSessionLocal()
+    # Create standard USER
+    user_normal = User(email="normaluser@freshguard.ai", password_hash=hash_password("pass"), role="USER")
+    # Create ADMIN user
+    user_admin = User(email="adminuser@freshguard.ai", password_hash=hash_password("pass"), role="ADMIN")
+    db.add(user_normal)
+    db.add(user_admin)
+    db.commit()
+    db.refresh(user_normal)
+    db.refresh(user_admin)
+
+    from app.core.security import create_access_token
+    token_normal = create_access_token({"sub": user_normal.id})
+    token_admin = create_access_token({"sub": user_admin.id})
+
+    # Unauthenticated request -> 401
+    res_unauth = client.get("/api/v1/admin/diagnostics")
+    assert res_unauth.status_code == 401
+
+    # Normal USER request -> 403 Forbidden
+    res_user = client.get("/api/v1/admin/diagnostics", headers={"Authorization": f"Bearer {token_normal}"})
+    assert res_user.status_code == 403
+    assert "Forbidden" in res_user.json()["detail"]
+
+    # ADMIN user request -> 200 OK
+    res_admin = client.get("/api/v1/admin/diagnostics", headers={"Authorization": f"Bearer {token_admin}"})
+    assert res_admin.status_code == 200
+    data_admin = res_admin.json()
+    assert data_admin["status"] in ["OPERATIONAL", "DEGRADED"]
+    assert data_admin["process_alive"] is True
+    assert "memory_usage_mb" in data_admin
+    db.close()
+
+def test_ocr_failure_without_hardcoded_mock():
+    # Submit invalid bytes that fail OCR extraction without fabricating fake milk text
+    res = process_raw_image_ocr(b"not an image", content_type="image/jpeg")
+    assert res.success is False
+    assert res.raw_text == ""
+    assert res.confidence == 0.0
+    assert "Invalid or corrupt image" in res.message
+
+def test_api_v1_endpoint_versioning():
+    reg = client.post("/api/v1/auth/register", json={"email": "v1user@freshguard.ai", "password": "pass"})
+    assert reg.status_code == 200
+    token = reg.json()["access_token"]
+    assert reg.json()["role"] == "USER"
+
+    me = client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"})
+    assert me.status_code == 200
+    assert me.json()["email"] == "v1user@freshguard.ai"
+
+def test_live_webcam_v2_detection_endpoint():
+    buf = io.BytesIO()
+    img = Image.new('RGB', (640, 640), color=(220, 180, 150))
+    img.save(buf, format='JPEG')
+    buf.seek(0)
+
+    files = {"file": ("webcam_frame.jpg", buf, "image/jpeg")}
+    res = client.post("/api/v1/scanner/vision/detect_v2?conf=0.20", files=files)
+    assert res.status_code == 200
+    data = res.json()
+    assert data["success"] is True
+    assert data["model"] == "grocery_yolov8_v2"
+    assert "detections" in data
+    assert "count" in data
+    assert "inference_ms" in data
+
+def test_35_class_metadata_mapping():
+    from app.ai.vision.validate_dataset import load_classes
+    classes = load_classes()
+    assert len(classes) == 35
+    assert classes[0] == "milk"
+    assert classes[14] == "packaged_snack"
+    assert classes[15] == "carrot"
+    assert classes[34] == "sweet_potato"
+
+
