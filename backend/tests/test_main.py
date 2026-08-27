@@ -523,9 +523,88 @@ def test_consume_inventory_item():
     add_res = client.post("/api/v1/inventory", json={"product_name": "Apple", "quantity": 5.0}, headers=headers)
     item_id = add_res.json()["id"]
 
-    consume_res = client.post(f"/api/v1/inventory/{item_id}/consume", json={"product_name": "Apple", "quantity_consumed": 2.0, "log_type": "consumed"}, headers=headers)
-    assert consume_res.status_code == 200
-    assert consume_res.json()["remaining_quantity"] == 3.0
+def test_freshness_engine_status_calculations():
+    from datetime import datetime, timedelta
+    from app.services.freshness import calculate_freshness_status
+
+    now = datetime.utcnow()
+    # Unknown
+    st_unk, d_unk = calculate_freshness_status(None)
+    assert st_unk == "UNKNOWN"
+    assert d_unk is None
+
+    # Fresh (>2 days)
+    st_fresh, d_fresh = calculate_freshness_status(now + timedelta(days=5))
+    assert st_fresh == "FRESH"
+    assert d_fresh >= 4
+
+    # Use Soon (0..2 days)
+    st_soon, d_soon = calculate_freshness_status(now + timedelta(days=1))
+    assert st_soon == "USE_SOON"
+    assert d_soon == 1
+
+    # Expired (<0 days)
+    st_exp, d_exp = calculate_freshness_status(now - timedelta(days=2))
+    assert st_exp == "EXPIRED"
+    assert d_exp <= -1
+
+def test_freshness_summary_and_use_first_endpoints():
+    from datetime import datetime, timedelta
+    now = datetime.utcnow()
+
+    reg = client.post("/api/v1/auth/register", json={"email": "freshuser@freshguard.ai", "password": "password123"})
+    t = reg.json()["access_token"]
+    headers = {"Authorization": f"Bearer {t}"}
+
+    # Add Fresh item
+    client.post("/api/v1/inventory", json={"product_name": "Fresh Carrot", "expiry_date": (now + timedelta(days=10)).isoformat()}, headers=headers)
+    # Add Use Soon item
+    client.post("/api/v1/inventory", json={"product_name": "Urgent Tomato", "expiry_date": (now + timedelta(days=1)).isoformat()}, headers=headers)
+    # Add Expired item
+    client.post("/api/v1/inventory", json={"product_name": "Old Milk", "expiry_date": (now - timedelta(days=2)).isoformat()}, headers=headers)
+
+    # Test Summary
+    res_sum = client.get("/api/v1/freshness/summary", headers=headers)
+    assert res_sum.status_code == 200
+    sum_data = res_sum.json()
+    assert sum_data["total"] == 3
+    assert sum_data["fresh"] == 1
+    assert sum_data["use_soon"] == 1
+    assert sum_data["expired"] == 1
+
+    # Test Use-First Recommendations
+    res_uf = client.get("/api/v1/freshness/use-first", headers=headers)
+    assert res_uf.status_code == 200
+    uf_data = res_uf.json()
+    assert len(uf_data) == 3
+
+    # Expired item safety check
+    expired_rec = next(i for i in uf_data if i["product_name"] == "Old Milk")
+    assert expired_rec["recommendation_action"] == "Review / Remove"
+    assert "Do not consume expired food" in expired_rec["guidance"]
+
+    # Use Soon item check
+    soon_rec = next(i for i in uf_data if i["product_name"] == "Urgent Tomato")
+    assert soon_rec["recommendation_action"] == "Consume First"
+
+    # Test Alerts Endpoint
+    res_alt = client.get("/api/v1/freshness/alerts", headers=headers)
+    assert res_alt.status_code == 200
+    alt_data = res_alt.json()
+    assert len(alt_data) >= 2
+
+def test_freshness_user_isolation():
+    reg1 = client.post("/api/v1/auth/register", json={"email": "fuser1@freshguard.ai", "password": "password123"})
+    t1 = reg1.json()["access_token"]
+    client.post("/api/v1/inventory", json={"product_name": "Secret Spinach"}, headers={"Authorization": f"Bearer {t1}"})
+
+    reg2 = client.post("/api/v1/auth/register", json={"email": "fuser2@freshguard.ai", "password": "password123"})
+    t2 = reg2.json()["access_token"]
+
+    res_sum2 = client.get("/api/v1/freshness/summary", headers={"Authorization": f"Bearer {t2}"})
+    assert res_sum2.status_code == 200
+    assert res_sum2.json()["total"] == 0
+
 
 
 

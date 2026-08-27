@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.core.database import Base, engine
-from app.api import auth, inventory, scanner, vision_router, ai_router, cart, notifications_router, analytics, health, admin
+from app.api import auth, inventory, freshness_router, scanner, vision_router, ai_router, cart, notifications_router, analytics, health, admin
 
 # Create database tables automatically
 Base.metadata.create_all(bind=engine)
@@ -29,6 +29,7 @@ app.include_router(health.router)
 # Include API v1 Routers
 app.include_router(auth.router, prefix="/api/v1")
 app.include_router(inventory.router, prefix="/api/v1")
+app.include_router(freshness_router.router, prefix="/api/v1")
 app.include_router(scanner.router, prefix="/api/v1")
 app.include_router(vision_router.router, prefix="/api/v1")
 app.include_router(ai_router.router, prefix="/api/v1")
@@ -40,6 +41,7 @@ app.include_router(admin.router, prefix="/api/v1")
 # Include Backward Compatibility Aliases under /api/...
 app.include_router(auth.router, prefix="/api")
 app.include_router(inventory.router, prefix="/api")
+app.include_router(freshness_router.router, prefix="/api")
 app.include_router(scanner.router, prefix="/api")
 app.include_router(vision_router.router, prefix="/api")
 app.include_router(ai_router.router, prefix="/api")

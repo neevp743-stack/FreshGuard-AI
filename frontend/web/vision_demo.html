@@ -56,7 +56,7 @@
     .tab-view.active { display: flex; }
 
     /* Summary Stat Cards */
-    .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 18px; }
+    .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 18px; }
     .stat-card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 14px; padding: 20px; display: flex; align-items: center; justify-content: space-between; }
     .stat-info label { font-size: 12px; color: var(--text-sub); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
     .stat-info .stat-value { font-size: 28px; font-weight: 800; margin-top: 4px; }
@@ -66,6 +66,11 @@
     .icon-fresh { background: rgba(16, 185, 129, 0.15); color: var(--emerald); }
     .icon-soon { background: rgba(245, 158, 11, 0.15); color: var(--amber); }
     .icon-expired { background: rgba(239, 68, 68, 0.15); color: var(--rose); }
+    .icon-unknown { background: rgba(148, 163, 184, 0.15); color: var(--text-sub); }
+
+    /* Alert Banner */
+    .alert-box { background: rgba(245, 158, 11, 0.1); border: 1px solid var(--amber); border-radius: 12px; padding: 14px 20px; display: flex; flex-direction: column; gap: 8px; }
+    .alert-header { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 14px; color: var(--amber); }
 
     /* Quick Action Banner */
     .hero-banner { background: linear-gradient(135deg, #1e293b, #0f172a); border: 1px solid var(--border); border-radius: 16px; padding: 25px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 20px; }
@@ -106,6 +111,7 @@
     .badge-healthy { background: rgba(16, 185, 129, 0.15); color: var(--emerald); border: 1px solid var(--emerald); }
     .badge-soon { background: rgba(245, 158, 11, 0.15); color: var(--amber); border: 1px solid var(--amber); }
     .badge-expired { background: rgba(239, 68, 68, 0.15); color: var(--rose); border: 1px solid var(--rose); }
+    .badge-unknown { background: rgba(148, 163, 184, 0.15); color: var(--text-sub); border: 1px solid var(--text-sub); }
 
     .inv-meta { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--text-sub); }
     .inv-actions { display: flex; gap: 8px; margin-top: 5px; }
@@ -118,7 +124,7 @@
     .scan-hud { position: absolute; top: 15px; left: 15px; background: rgba(11, 15, 25, 0.85); backdrop-filter: blur(6px); border: 1px solid var(--border); padding: 8px 16px; border-radius: 10px; display: flex; gap: 16px; font-size: 13px; font-weight: 600; }
     .scan-hud span { color: var(--primary); font-weight: 800; }
 
-    /* Confirmation Modal */
+    /* Modal Backdrop */
     .modal-backdrop { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.75); backdrop-filter: blur(4px); display: none; align-items: center; justify-content: center; z-index: 100; padding: 20px; }
     .modal-backdrop.open { display: flex; }
     .modal-card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 16px; width: 100%; max-width: 650px; max-height: 90vh; overflow-y: auto; padding: 25px; display: flex; flex-direction: column; gap: 20px; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5); }
@@ -173,6 +179,12 @@
       <main class="content-container">
         <!-- DASHBOARD TAB -->
         <section id="tab-dashboard" class="tab-view active">
+          <!-- Urgent Alert Banner -->
+          <div id="dashboard-alert-banner" class="alert-box" style="display: none;">
+            <div class="alert-header"><i class="fa-solid fa-bell"></i> Needs Attention</div>
+            <div id="dashboard-alert-list" style="display: flex; flex-direction: column; gap: 4px; font-size: 13px;"></div>
+          </div>
+
           <div class="hero-banner">
             <div class="hero-text">
               <h2>Good morning 👋</h2>
@@ -213,6 +225,13 @@
               </div>
               <div class="stat-icon icon-expired"><i class="fa-solid fa-triangle-exclamation"></i></div>
             </div>
+            <div class="stat-card">
+              <div class="stat-info">
+                <label>UNKNOWN</label>
+                <div class="stat-value" id="stat-unknown" style="color: var(--text-sub);">0</div>
+              </div>
+              <div class="stat-icon icon-unknown"><i class="fa-solid fa-circle-question"></i></div>
+            </div>
           </div>
 
           <div class="section-grid">
@@ -228,7 +247,7 @@
 
             <div class="card">
               <div class="card-header">
-                <h3>Urgent — Use Soon</h3>
+                <h3>Use First Priority</h3>
               </div>
               <div id="dashboard-use-soon-list" style="display: flex; flex-direction: column; gap: 10px;">
                 <div style="font-size: 13px; color: var(--text-sub); font-style: italic;">No items currently expiring.</div>
@@ -304,36 +323,38 @@
 
               <select id="inv-filter-status" onchange="renderInventoryUI()">
                 <option value="All">All Statuses</option>
-                <option value="Healthy">Fresh</option>
-                <option value="Expiring Soon">Use Soon</option>
-                <option value="Expired">Expired</option>
+                <option value="FRESH">Fresh</option>
+                <option value="USE_SOON">Use Soon</option>
+                <option value="EXPIRED">Expired</option>
+                <option value="UNKNOWN">Unknown</option>
               </select>
             </div>
           </div>
 
-          <div id="inventory-items-container" class="inventory-grid">
-            <!-- Dynamic inventory cards -->
-          </div>
+          <div id="inventory-items-container" class="inventory-grid"></div>
         </section>
 
         <!-- FRESHNESS TAB -->
         <section id="tab-freshness" class="tab-view">
           <div class="card">
-            <h2>Freshness & Expiry Guidance</h2>
+            <h2>Freshness Intelligence</h2>
             <p style="font-size: 13px; color: var(--text-sub);">
-              Disclaimer: Expiration dates are calculated estimates based on standard food safety rules. FreshGuard Vision camera detection does not measure chemical food spoilage.
+              Disclaimer: Expiration dates are calculated estimates based on standard food safety rules or manufacturer dates. Camera detection identifies objects but does not measure physical or chemical spoilage.
             </p>
           </div>
 
-          <div class="section-grid">
-            <div class="card">
-              <h3>Items Needing Attention (Expiring Soon / Expired)</h3>
-              <div id="freshness-urgent-list" class="inventory-grid" style="grid-template-columns: 1fr;"></div>
+          <div class="card">
+            <div class="card-header">
+              <h3><i class="fa-solid fa-fire-burner" style="color: var(--amber);"></i> Use-First Recommendations</h3>
             </div>
-            <div class="card">
-              <h3>Fresh Items</h3>
-              <div id="freshness-healthy-list" class="inventory-grid" style="grid-template-columns: 1fr;"></div>
+            <div id="freshness-use-first-container" style="display: flex; flex-direction: column; gap: 12px;"></div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <h3><i class="fa-solid fa-timeline" style="color: var(--primary);"></i> Expiry Timeline</h3>
             </div>
+            <div id="freshness-timeline-container" style="display: flex; flex-direction: column; gap: 16px;"></div>
           </div>
         </section>
       </main>
@@ -360,9 +381,7 @@
         FreshGuard Vision detected the following items. Confirm quantity, category, and storage location before adding to your inventory.
       </p>
 
-      <div id="confirm-items-list" style="display: flex; flex-direction: column; gap: 12px;">
-        <!-- Dynamic aggregated detection rows -->
-      </div>
+      <div id="confirm-items-list" style="display: flex; flex-direction: column; gap: 12px;"></div>
 
       <div style="display: flex; gap: 12px; justify-content: flex-end; margin-top: 10px;">
         <button class="btn btn-secondary" onclick="closeConfirmModal()">Scan Again</button>
@@ -375,6 +394,9 @@
     const API_BASE = window.API_BASE_URL || localStorage.getItem('freshguard_api_url') || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? "http://127.0.0.1:8000/api/v1" : "https://freshguard-ai-auef.onrender.com/api/v1");
 
     let inventoryCache = [];
+    let alertsCache = [];
+    let useFirstCache = [];
+    let summaryCache = { total: 0, fresh: 0, use_soon: 0, expired: 0, unknown: 0 };
     let activeStream = null;
     let isProcessingFrame = false;
     let lastFrameTime = performance.now();
@@ -394,36 +416,51 @@
       document.getElementById('page-title-text').innerText = tabName.charAt(0).toUpperCase() + tabName.slice(1);
 
       if (tabName === 'inventory' || tabName === 'dashboard' || tabName === 'freshness') {
-        loadInventoryData();
+        loadFreshnessData();
       }
     }
 
-    async function loadInventoryData() {
+    async function loadFreshnessData() {
       const token = localStorage.getItem('freshguard_token');
+      const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+
       try {
-        const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
-        const res = await fetch(`${API_BASE}/inventory`, { headers });
-        if (res.ok) {
-          inventoryCache = await res.json();
-          renderDashboardUI();
-          renderInventoryUI();
-          renderFreshnessUI();
-        }
+        const [sumRes, invRes, ufRes, altRes] = await Promise.all([
+          fetch(`${API_BASE}/freshness/summary`, { headers }),
+          fetch(`${API_BASE}/freshness/items`, { headers }),
+          fetch(`${API_BASE}/freshness/use-first`, { headers }),
+          fetch(`${API_BASE}/freshness/alerts`, { headers })
+        ]);
+
+        if (sumRes.ok) summaryCache = await sumRes.json();
+        if (invRes.ok) inventoryCache = await invRes.json();
+        if (ufRes.ok) useFirstCache = await ufRes.json();
+        if (altRes.ok) alertsCache = await altRes.json();
+
+        renderDashboardUI();
+        renderInventoryUI();
+        renderFreshnessTabUI();
       } catch (err) {
-        console.warn("Inventory load fallback:", err);
+        console.warn("Freshness load error:", err);
       }
     }
 
     function renderDashboardUI() {
-      const total = inventoryCache.length;
-      const fresh = inventoryCache.filter(i => i.status === 'Healthy').length;
-      const soon = inventoryCache.filter(i => i.status === 'Expiring Soon' || i.status === 'Running Low').length;
-      const expired = inventoryCache.filter(i => i.status === 'Expired').length;
+      document.getElementById('stat-total').innerText = summaryCache.total;
+      document.getElementById('stat-fresh').innerText = summaryCache.fresh;
+      document.getElementById('stat-soon').innerText = summaryCache.use_soon;
+      document.getElementById('stat-expired').innerText = summaryCache.expired;
+      document.getElementById('stat-unknown').innerText = summaryCache.unknown;
 
-      document.getElementById('stat-total').innerText = total;
-      document.getElementById('stat-fresh').innerText = fresh;
-      document.getElementById('stat-soon').innerText = soon;
-      document.getElementById('stat-expired').innerText = expired;
+      // Render Alert Banner
+      const alertBanner = document.getElementById('dashboard-alert-banner');
+      const alertList = document.getElementById('dashboard-alert-list');
+      if (alertsCache.length > 0) {
+        alertBanner.style.display = 'flex';
+        alertList.innerHTML = alertsCache.slice(0, 3).map(a => `<div>${a.message}</div>`).join('');
+      } else {
+        alertBanner.style.display = 'none';
+      }
 
       // Render Recent List
       const recentContainer = document.getElementById('dashboard-recent-list');
@@ -436,15 +473,15 @@
 
       // Render Use Soon List
       const soonContainer = document.getElementById('dashboard-use-soon-list');
-      const urgent = inventoryCache.filter(i => i.status === 'Expiring Soon' || i.status === 'Expired');
-      if (urgent.length === 0) {
+      if (useFirstCache.length === 0) {
         soonContainer.innerHTML = `<div style="font-size: 13px; color: var(--text-sub); font-style: italic;">No items currently expiring soon.</div>`;
       } else {
-        soonContainer.innerHTML = urgent.map(item => `
+        soonContainer.innerHTML = useFirstCache.slice(0, 4).map(item => `
           <div class="confirm-item-row">
             <div>
               <strong style="text-transform: capitalize;">${item.product_name}</strong>
               <div style="font-size: 12px; color: var(--text-sub);">${item.storage_location} • ${item.quantity} ${item.unit}</div>
+              <div style="font-size: 11px; color: ${item.status === 'EXPIRED' ? 'var(--rose)' : 'var(--amber)'}; font-weight: 700;">${item.guidance}</div>
             </div>
             <button class="btn btn-secondary" style="padding: 4px 10px; font-size: 12px;" onclick="consumeItem(${item.id})">Log Consumed</button>
           </div>
@@ -462,7 +499,8 @@
         const matchesSearch = item.product_name.toLowerCase().includes(search);
         const matchesCat = cat === 'All' || item.category === cat;
         const matchesLoc = loc === 'All' || item.storage_location === loc;
-        const matchesSt = st === 'All' || item.status === st;
+        const normSt = item.status === 'Healthy' ? 'FRESH' : (item.status === 'Expiring Soon' ? 'USE_SOON' : item.status);
+        const matchesSt = st === 'All' || normSt === st;
         return matchesSearch && matchesCat && matchesLoc && matchesSt;
       });
 
@@ -475,9 +513,12 @@
     }
 
     function createInventoryCardHTML(item) {
-      const badgeClass = item.status === 'Healthy' ? 'badge-healthy' : (item.status === 'Expired' ? 'badge-expired' : 'badge-soon');
-      const badgeText = item.status === 'Healthy' ? 'FRESH' : item.status.toUpperCase();
-      const expTxt = item.days_until_expiry !== null ? `${item.days_until_expiry} days remaining` : 'Date unavailable';
+      const normSt = item.status === 'Healthy' ? 'FRESH' : (item.status === 'Expiring Soon' ? 'USE_SOON' : item.status);
+      const badgeClass = normSt === 'FRESH' ? 'badge-healthy' : (normSt === 'EXPIRED' ? 'badge-expired' : (normSt === 'UNKNOWN' ? 'badge-unknown' : 'badge-soon'));
+      const badgeText = normSt === 'FRESH' ? '🟢 FRESH' : (normSt === 'EXPIRED' ? '🔴 EXPIRED' : (normSt === 'UNKNOWN' ? '⚪ UNKNOWN' : '🟠 USE SOON'));
+
+      const isEstimated = item.notes && item.notes.toLowerCase().includes('estimated');
+      const expLabel = normSt === 'UNKNOWN' ? 'Date unavailable' : (isEstimated ? `Estimated expiry: ${formatDate(item.expiry_date)}` : `Expiry date: ${formatDate(item.expiry_date)}`);
 
       return `
         <div class="inventory-card">
@@ -486,25 +527,91 @@
             <span class="inv-badge ${badgeClass}">${badgeText}</span>
           </div>
           <div class="inv-meta">
-            <div>Category: <strong>${item.category}</strong></div>
+            <div>Category: <strong>${item.category || 'Other'}</strong></div>
             <div>Quantity: <strong>${item.quantity} ${item.unit}</strong></div>
             <div>Location: <strong>${item.storage_location}</strong></div>
-            <div>Expires: <strong>${expTxt}</strong></div>
+            <div>${expLabel}</div>
           </div>
           <div class="inv-actions">
-            <button class="btn btn-secondary" style="flex:1; padding: 6px;" onclick="consumeItem(${item.id})"><i class="fa-solid fa-check"></i> Consume</button>
+            ${normSt === 'UNKNOWN' ? `<button class="btn btn-secondary" style="flex:1; padding: 6px; font-size: 11px;" onclick="promptSetExpiry(${item.id})"><i class="fa-solid fa-calendar-plus"></i> Add Expiry Date</button>` : `<button class="btn btn-secondary" style="flex:1; padding: 6px;" onclick="consumeItem(${item.id})"><i class="fa-solid fa-check"></i> Consume</button>`}
             <button class="btn btn-danger" style="padding: 6px;" onclick="deleteItem(${item.id})"><i class="fa-solid fa-trash"></i></button>
           </div>
         </div>
       `;
     }
 
-    function renderFreshnessUI() {
-      const urgent = inventoryCache.filter(i => i.status === 'Expiring Soon' || i.status === 'Expired');
-      const healthy = inventoryCache.filter(i => i.status === 'Healthy');
+    function formatDate(dtStr) {
+      if (!dtStr) return 'N/A';
+      const d = new Date(dtStr);
+      return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+    }
 
-      document.getElementById('freshness-urgent-list').innerHTML = urgent.length ? urgent.map(i => createInventoryCardHTML(i)).join('') : '<div style="color: var(--text-sub); italic;">No items requiring urgent attention.</div>';
-      document.getElementById('freshness-healthy-list').innerHTML = healthy.length ? healthy.map(i => createInventoryCardHTML(i)).join('') : '<div style="color: var(--text-sub); italic;">No fresh items logged.</div>';
+    function renderFreshnessTabUI() {
+      // Use First Recommendations
+      const ufContainer = document.getElementById('freshness-use-first-container');
+      if (useFirstCache.length === 0) {
+        ufContainer.innerHTML = `<div style="font-size: 13px; color: var(--text-sub); font-style: italic;">No items currently logged in inventory.</div>`;
+      } else {
+        ufContainer.innerHTML = useFirstCache.map(i => `
+          <div class="confirm-item-row">
+            <div>
+              <strong style="text-transform: capitalize; font-size: 15px;">${i.product_name}</strong>
+              <div style="font-size: 12px; color: var(--text-sub);">${i.storage_location} • ${i.quantity} ${i.unit}</div>
+              <div style="font-size: 12px; color: ${i.status === 'EXPIRED' ? 'var(--rose)' : 'var(--amber)'}; font-weight: 700; margin-top: 2px;">${i.guidance}</div>
+            </div>
+            <span class="inv-badge ${i.status === 'EXPIRED' ? 'badge-expired' : 'badge-soon'}">${i.recommendation_action}</span>
+          </div>
+        `).join('');
+      }
+
+      // Expiry Timeline
+      const timelineContainer = document.getElementById('freshness-timeline-container');
+      const todayItems = [];
+      const twoDaysItems = [];
+      const fiveDaysItems = [];
+      const laterItems = [];
+
+      inventoryCache.forEach(item => {
+        if (!item.expiry_date) return;
+        const days = item.days_until_expiry;
+        if (days <= 0) todayItems.push(item);
+        else if (days <= 2) twoDaysItems.push(item);
+        else if (days <= 5) fiveDaysItems.push(item);
+        else laterItems.push(item);
+      });
+
+      timelineContainer.innerHTML = `
+        <div>
+          <h4 style="font-size: 13px; color: var(--rose); text-transform: uppercase; margin-bottom: 8px;">TODAY / EXPIRED (${todayItems.length})</h4>
+          <div class="inventory-grid">${todayItems.length ? todayItems.map(i => createInventoryCardHTML(i)).join('') : '<div style="font-size: 12px; color: var(--text-sub); font-style: italic;">None</div>'}</div>
+        </div>
+        <div>
+          <h4 style="font-size: 13px; color: var(--amber); text-transform: uppercase; margin-bottom: 8px;">NEXT 2 DAYS (${twoDaysItems.length})</h4>
+          <div class="inventory-grid">${twoDaysItems.length ? twoDaysItems.map(i => createInventoryCardHTML(i)).join('') : '<div style="font-size: 12px; color: var(--text-sub); font-style: italic;">None</div>'}</div>
+        </div>
+        <div>
+          <h4 style="font-size: 13px; color: var(--primary); text-transform: uppercase; margin-bottom: 8px;">NEXT 5 DAYS (${fiveDaysItems.length})</h4>
+          <div class="inventory-grid">${fiveDaysItems.length ? fiveDaysItems.map(i => createInventoryCardHTML(i)).join('') : '<div style="font-size: 12px; color: var(--text-sub); font-style: italic;">None</div>'}</div>
+        </div>
+        <div>
+          <h4 style="font-size: 13px; color: var(--emerald); text-transform: uppercase; margin-bottom: 8px;">LATER (${laterItems.length})</h4>
+          <div class="inventory-grid">${laterItems.length ? laterItems.map(i => createInventoryCardHTML(i)).join('') : '<div style="font-size: 12px; color: var(--text-sub); font-style: italic;">None</div>'}</div>
+        </div>
+      `;
+    }
+
+    async function promptSetExpiry(id) {
+      const input = prompt("Enter expiration date (YYYY-MM-DD):");
+      if (!input) return;
+      const token = localStorage.getItem('freshguard_token');
+      const headers = token ? { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' } : { 'Content-Type': 'application/json' };
+
+      await fetch(`${API_BASE}/inventory/${id}`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify({ expiry_date: new Date(input).isoformat() })
+      });
+      loadFreshnessData();
     }
 
     async function consumeItem(id) {
@@ -513,16 +620,16 @@
       await fetch(`${API_BASE}/inventory/${id}/consume`, {
         method: 'POST',
         headers,
-        body: JSON.stringify({ quantity_consumed: 1.0, log_type: 'consumed' })
+        body: JSON.stringify({ product_name: "item", quantity_consumed: 1.0, log_type: 'consumed' })
       });
-      loadInventoryData();
+      loadFreshnessData();
     }
 
     async function deleteItem(id) {
       const token = localStorage.getItem('freshguard_token');
       const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
       await fetch(`${API_BASE}/inventory/${id}`, { method: 'DELETE', headers });
-      loadInventoryData();
+      loadFreshnessData();
     }
 
     /* Camera & Vision Scan */
@@ -624,7 +731,6 @@
 
     function openReviewConfirmationModal(detections) {
       stopCamera();
-      // Aggregate duplicate classes
       const aggregated = {};
       detections.forEach(d => {
         const cid = d.class_id;
@@ -705,14 +811,14 @@
       if (res.ok) {
         closeConfirmModal();
         switchTab('inventory');
-        loadInventoryData();
+        loadFreshnessData();
       } else {
         alert("Failed to save items to inventory.");
       }
     }
 
     // Initialize
-    loadInventoryData();
+    loadFreshnessData();
   </script>
 </body>
 </html>
