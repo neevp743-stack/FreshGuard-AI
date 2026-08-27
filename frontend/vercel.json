@@ -1,15 +1,22 @@
 {
   "version": 2,
   "name": "freshguard-ai-frontend",
-  "builds": [
-    {
-      "src": "web/index.html",
-      "use": "@vercel/static"
-    }
-  ],
+  "cleanUrls": true,
   "routes": [
     {
-      "src": "/(.*)",
+      "src": "/vision_demo.html",
+      "dest": "/web/vision_demo.html"
+    },
+    {
+      "src": "/vision_demo",
+      "dest": "/web/vision_demo.html"
+    },
+    {
+      "src": "/index.html",
+      "dest": "/web/index.html"
+    },
+    {
+      "src": "/",
       "dest": "/web/index.html"
     }
   ]
