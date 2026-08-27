@@ -23,9 +23,11 @@ def verify_model_integrity(target_dir: str = "vision_models", baseline_manifest:
 
     current_hashes = {}
     for root, dirs, files in os.walk(abs_target):
-        # Ignore experimental model directory from production model baseline audit
+        # Ignore experimental and deployment export directories from production model baseline audit
         if "experiments" in dirs:
             dirs.remove("experiments")
+        if "deployment" in dirs:
+            dirs.remove("deployment")
         for file in files:
             if file == "model_hashes.json":
                 continue
