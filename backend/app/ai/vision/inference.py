@@ -135,6 +135,7 @@ def run_vision_inference(image_bytes: bytes) -> VisionDetectResponse:
 V2_WEIGHTS_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../../vision_models/experiments/grocery_yolov8_v2/weights/best.pt"))
 V2_ONNX_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../../vision_models/deployment/grocery_yolov8_v2_web/model.onnx"))
 
+FRESHGUARD_VISION_DISPLAY_NAME = "FreshGuard Vision"
 _ONNX_SESSION_CACHE = None
 
 def get_onnx_session():
@@ -285,10 +286,11 @@ def _run_onnxruntime_v2_inference(image_bytes: bytes, conf_threshold: float = 0.
         return {
             "success": True,
             "model": "grocery_yolov8_v2",
+            "model_display_name": FRESHGUARD_VISION_DISPLAY_NAME,
             "detections": detections,
             "count": len(detections),
             "inference_ms": inference_ms,
-            "message": f"Real V2 ONNX detection complete. Found {len(detections)} object(s)."
+            "message": f"Real {FRESHGUARD_VISION_DISPLAY_NAME} ONNX detection complete. Found {len(detections)} object(s)."
         }
     except Exception as ex:
         logger.error(f"ONNX Runtime V2 inference error: {ex}")

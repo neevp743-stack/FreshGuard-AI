@@ -1,7 +1,7 @@
-# FreshGuard AI — Grocery & Vegetable Vision Model V2 Training & Evaluation Report
+# FreshGuard AI — FreshGuard Vision (35-Class Grocery & Vegetable Detection) Training & Evaluation Report
 
 **Project:** FreshGuard AI  
-**Report Title:** Grocery Vision Model V2 Training & Evaluation Report  
+**Report Title:** FreshGuard Vision Training & Evaluation Report  
 **Date:** August 27, 2026  
 **Final Status:** `VEGETABLE_DATASET_AND_MODEL_V2_SUCCESSFUL`  
 

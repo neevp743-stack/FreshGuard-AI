@@ -37,7 +37,8 @@
 
 ## 2. Model Specification
 
-- **Experimental Model:** `grocery_yolov8_v2`
+- **Model Display Name:** `FreshGuard Vision` (35-Class Grocery & Vegetable Detection)
+- **Underlying Architecture:** `Ultralytics YOLOv8n` (`grocery_yolov8_v2`)
 - **Weights File:** `vision_models/experiments/grocery_yolov8_v2/weights/best.pt`
 - **Exported Web Artifact:** `vision_models/deployment/grocery_yolov8_v2_web/model.onnx` & `model.pt`
 - **Input Resolution:** 640x640 RGB
