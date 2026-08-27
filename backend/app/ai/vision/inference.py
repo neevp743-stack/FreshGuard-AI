@@ -226,13 +226,18 @@ def _run_onnxruntime_v2_inference(image_bytes: bytes, conf_threshold: float = 0.
 def run_experimental_v2_inference(image_bytes: bytes, conf_threshold: float = 0.25, iou_threshold: float = 0.45) -> Dict[str, Any]:
     """
     Executes real YOLOv8 V2 (35-class) experimental model inference on image frame.
-    Returns real predictions, class names, bounding boxes, object count, and latency.
+    Prefers ONNX Runtime for zero-dependency high speed Linux execution, with PyTorch fallback.
     """
+    # 1. Try ONNX Runtime inference first
+    onnx_res = _run_onnxruntime_v2_inference(image_bytes, conf_threshold=conf_threshold, iou_threshold=iou_threshold)
+    if onnx_res and onnx_res.get("success"):
+        return onnx_res
+
+    # 2. PyTorch PyPI fallback
     candidates = [
         V2_WEIGHTS_PATH,
         os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../../vision_models/experiments/grocery_yolov8_v2/results/run_v2/weights/best.pt")),
         os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../../vision_models/deployment/grocery_yolov8_v2_web/model.pt")),
-        V2_ONNX_PATH,
     ]
 
     weights_path = None
@@ -292,11 +297,7 @@ def run_experimental_v2_inference(image_bytes: bytes, conf_threshold: float = 0.
             "message": f"Real V2 detection complete. Found {len(detections)} object(s)."
         }
     except Exception as ex:
-        logger.warning(f"Experimental V2 PyTorch vision inference error ({ex}); attempting ONNX runtime fallback...")
-        onnx_res = _run_onnxruntime_v2_inference(image_bytes, conf_threshold=conf_threshold, iou_threshold=iou_threshold)
-        if onnx_res:
-            return onnx_res
-
+        logger.error(f"Experimental V2 vision inference error: {ex}")
         return {
             "success": False,
             "model": "grocery_yolov8_v2",
