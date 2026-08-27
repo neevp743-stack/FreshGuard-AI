@@ -1,0 +1,31 @@
+# Python & Database
+*.pyc
+__pycache__/
+*.db
+*.sqlite
+.env
+test_freshguard.db
+yolov8n.pt
+vision_feedback_metadata.jsonl
+
+# Vision Dataset & Staging Directories
+datasets/grocery_vision/images/
+datasets/grocery_vision/labels/
+datasets/grocery_vision/raw_unannotated/
+datasets/_acquisition/
+datasets/_vegetable_acquisition/
+datasets/real_world_test/
+
+# Trained Model Binaries
+vision_models/*.pt
+vision_models/*.onnx
+vision_models/experiments/*/weights/
+vision_models/deployment/*/*.pt
+vision_models/deployment/*/*.onnx
+!vision_models/model_metadata.json
+
+# Flutter & IDE
+.dart_tool/
+build/
+.vscode/
+.idea/

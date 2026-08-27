@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: freshguard-ai-backend
+    env: python
+    buildCommand: "pip install -r backend/requirements.txt"
+    startCommand: "cd backend && uvicorn main:app --host 0.0.0.0 --port $PORT"
+    envVars:
+      - key: APP_NAME
+        value: "FreshGuard AI"
+      - key: APP_ENV
+        value: "production"
+      - key: SECRET_KEY
+        generateValue: true
+      - key: ACCESS_TOKEN_EXPIRE_MINUTES
+        value: "4320"
+      - key: DATABASE_URL
+        value: "sqlite:///./freshguard.db"
+      - key: VISION_CONFIDENCE_THRESHOLD
+        value: "0.50"

@@ -1,0 +1,12 @@
+{
+  "model_name": "FreshGuard Grocery Vision",
+  "version": "0.1.0",
+  "lifecycle_state": "NOT_TRAINED",
+  "classes_count": 15,
+  "training_dataset_version": "v1",
+  "created_at": null,
+  "model_architecture": "Ultralytics YOLOv8n (yolov8n.pt)",
+  "framework": "PyTorch / Ultralytics 8.1.24",
+  "metrics": {},
+  "message": "Vision model integration is ready; training is pending the real grocery dataset."
+}
