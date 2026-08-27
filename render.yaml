@@ -19,3 +19,5 @@ services:
         value: "sqlite:///./freshguard.db"
       - key: VISION_CONFIDENCE_THRESHOLD
         value: "0.50"
+      - key: CORS_ORIGINS
+        value: "https://fresh-guard-ai-delta.vercel.app,https://freshguard-ai.vercel.app,*"
