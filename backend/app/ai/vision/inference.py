@@ -135,12 +135,16 @@ def run_vision_inference(image_bytes: bytes) -> VisionDetectResponse:
 V2_WEIGHTS_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../../vision_models/experiments/grocery_yolov8_v2/weights/best.pt"))
 V2_ONNX_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../../vision_models/deployment/grocery_yolov8_v2_web/model.onnx"))
 
+_LAST_ONNX_ERROR = None
+
 def _run_onnxruntime_v2_inference(image_bytes: bytes, conf_threshold: float = 0.25, iou_threshold: float = 0.45) -> Optional[Dict[str, Any]]:
     """
     Executes ONNX Runtime inference using exported 35-class model.onnx artifact.
     Bypasses PyTorch C++ NumPy binding dependencies cleanly on Linux runtimes.
     """
+    global _LAST_ONNX_ERROR
     if not os.path.exists(V2_ONNX_PATH):
+        _LAST_ONNX_ERROR = f"V2_ONNX_PATH does not exist: '{V2_ONNX_PATH}'"
         return None
 
     try:
@@ -211,6 +215,7 @@ def _run_onnxruntime_v2_inference(image_bytes: bytes, conf_threshold: float = 0.
         t_end = time.perf_counter()
         inference_ms = round((t_end - t_start) * 1000, 1)
 
+        _LAST_ONNX_ERROR = None
         return {
             "success": True,
             "model": "grocery_yolov8_v2",
@@ -220,6 +225,7 @@ def _run_onnxruntime_v2_inference(image_bytes: bytes, conf_threshold: float = 0.
             "message": f"Real V2 ONNX detection complete. Found {len(detections)} object(s)."
         }
     except Exception as ex:
+        _LAST_ONNX_ERROR = f"ONNX Runtime error [{type(ex).__name__}]: {ex}"
         logger.warning(f"ONNX Runtime V2 fallback error: {ex}")
         return None
 
@@ -297,14 +303,16 @@ def run_experimental_v2_inference(image_bytes: bytes, conf_threshold: float = 0.
             "message": f"Real V2 detection complete. Found {len(detections)} object(s)."
         }
     except Exception as ex:
-        logger.error(f"Experimental V2 vision inference error: {ex}")
+        import traceback
+        tb_str = traceback.format_exc()
+        logger.error(f"Experimental V2 vision inference error: {ex}\n{tb_str}")
         return {
             "success": False,
             "model": "grocery_yolov8_v2",
             "detections": [],
             "count": 0,
             "inference_ms": 0.0,
-            "message": f"Vision inference unavailable: {ex}"
+            "message": f"Vision inference error [{type(ex).__name__}]: {ex} | ONNX err: {_LAST_ONNX_ERROR}"
         }
     finally:
         if tmp_path and os.path.exists(tmp_path):
