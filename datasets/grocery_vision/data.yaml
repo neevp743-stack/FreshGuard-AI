@@ -1,0 +1,41 @@
+path: ../datasets/grocery_vision
+train: images/train
+val: images/val
+test: images/test
+nc: 35
+names:
+  0: milk
+  1: bread
+  2: apple
+  3: banana
+  4: egg
+  5: tomato
+  6: potato
+  7: onion
+  8: rice
+  9: yogurt
+  10: cheese
+  11: biscuit
+  12: juice
+  13: water
+  14: packaged_snack
+  15: carrot
+  16: cabbage
+  17: cauliflower
+  18: capsicum
+  19: cucumber
+  20: brinjal
+  21: broccoli
+  22: spinach
+  23: peas
+  24: corn
+  25: garlic
+  26: ginger
+  27: okra
+  28: beetroot
+  29: radish
+  30: pumpkin
+  31: bitter_gourd
+  32: bottle_gourd
+  33: green_chilli
+  34: sweet_potato
