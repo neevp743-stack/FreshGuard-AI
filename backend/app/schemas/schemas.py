@@ -87,6 +87,22 @@ class InventoryOut(BaseModel):
     class Config:
         from_attributes = True
 
+class ConfirmedDetectionItem(BaseModel):
+    class_id: int
+    name: str
+    quantity: float = 1.0
+    unit: str = "pcs"
+    location: str = "Fridge"
+    purchase_date: Optional[datetime] = None
+    expiry_date: Optional[datetime] = None
+    notes: Optional[str] = None
+
+class FromDetectionsRequest(BaseModel):
+    items: List[ConfirmedDetectionItem]
+
+class BulkInventoryCreate(BaseModel):
+    items: List[InventoryCreate]
+
 # --- Consumption Log Schemas ---
 class ConsumptionLogCreate(BaseModel):
     inventory_id: Optional[int] = None

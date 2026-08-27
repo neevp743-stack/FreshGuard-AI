@@ -3,168 +3,370 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>FreshGuard AI — FreshGuard Vision (35-Class Grocery & Vegetable Detection)</title>
+  <title>FreshGuard AI — Smart Grocery & Food Inventory Management</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <style>
     :root {
       --bg: #0b0f19;
       --card-bg: #151c2c;
+      --card-hover: #1c263b;
       --border: #232d42;
       --primary: #3b82f6;
+      --primary-hover: #2563eb;
       --emerald: #10b981;
-      --status-expiring: #f59e0b;
-      --status-expired: #ef4444;
+      --emerald-hover: #059669;
+      --amber: #f59e0b;
+      --rose: #ef4444;
       --text: #f8fafc;
       --text-sub: #94a3b8;
+      --sidebar-width: 240px;
     }
 
-    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', system-ui, sans-serif; }
-    body { background: var(--bg); color: var(--text); padding: 24px; display: flex; justify-content: center; }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', system-ui, -apple-system, sans-serif; }
+    body { background-color: var(--bg); color: var(--text); min-height: 100vh; display: flex; flex-direction: column; }
 
-    .container { max-width: 960px; width: 100%; display: flex; flex-direction: column; gap: 20px; }
+    /* App Layout */
+    .app-shell { display: flex; min-height: 100vh; width: 100%; }
 
-    header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 16px; }
-    header h1 { font-size: 22px; font-weight: 700; color: var(--emerald); display: flex; align-items: center; gap: 10px; }
+    /* Sidebar Navigation (Desktop) */
+    .sidebar { width: var(--sidebar-width); background: var(--card-bg); border-right: 1px solid var(--border); padding: 20px 15px; display: flex; flex-direction: column; gap: 25px; flex-shrink: 0; }
+    .brand-logo { display: flex; align-items: center; gap: 10px; font-size: 20px; font-weight: 800; color: var(--primary); text-decoration: none; }
+    .brand-tagline { font-size: 11px; color: var(--text-sub); margin-top: -18px; font-style: italic; }
 
-    .controls-card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px; padding: 16px; display: flex; flex-wrap: wrap; gap: 16px; align-items: center; justify-content: space-between; }
+    .nav-list { display: flex; flex-direction: column; gap: 6px; list-style: none; }
+    .nav-item button { width: 100%; display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-radius: 10px; background: transparent; border: none; color: var(--text-sub); font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s; text-align: left; }
+    .nav-item button:hover { background: rgba(59, 130, 246, 0.1); color: var(--text); }
+    .nav-item button.active { background: var(--primary); color: white; }
+
+    .nav-cta { margin-top: auto; background: linear-gradient(135deg, var(--emerald), #059669); color: white; padding: 14px; border-radius: 12px; border: none; font-weight: 700; font-size: 14px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; transition: transform 0.1s; }
+    .nav-cta:active { transform: scale(0.98); }
+
+    /* Main Content Area */
+    .main-wrapper { flex: 1; display: flex; flex-direction: column; overflow-x: hidden; }
+
+    /* Top Bar Header */
+    .top-bar { height: 65px; border-bottom: 1px solid var(--border); padding: 0 25px; display: flex; align-items: center; justify-content: space-between; background: var(--bg); position: sticky; top: 0; z-index: 50; }
+    .top-title { font-size: 18px; font-weight: 700; }
+    .user-profile { display: flex; align-items: center; gap: 12px; }
+    .auth-btn { background: var(--card-bg); border: 1px solid var(--border); color: var(--text); padding: 8px 14px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; }
+
+    /* Content Views Container */
+    .content-container { padding: 25px; max-width: 1200px; width: 100%; margin: 0 auto; display: flex; flex-direction: column; gap: 25px; }
+    .tab-view { display: none; flex-direction: column; gap: 25px; width: 100%; }
+    .tab-view.active { display: flex; }
+
+    /* Summary Stat Cards */
+    .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 18px; }
+    .stat-card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 14px; padding: 20px; display: flex; align-items: center; justify-content: space-between; }
+    .stat-info label { font-size: 12px; color: var(--text-sub); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+    .stat-info .stat-value { font-size: 28px; font-weight: 800; margin-top: 4px; }
+    .stat-icon { width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 20px; }
     
-    .btn-group { display: flex; gap: 12px; }
-    .btn { padding: 10px 18px; border-radius: 8px; border: none; font-size: 14px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: 0.2s; }
-    .btn-start { background: var(--emerald); color: #fff; }
-    .btn-start:hover { background: #059669; }
-    .btn-stop { background: var(--status-expired); color: #fff; }
-    .btn-stop:hover { background: #dc2626; }
-    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .icon-total { background: rgba(59, 130, 246, 0.15); color: var(--primary); }
+    .icon-fresh { background: rgba(16, 185, 129, 0.15); color: var(--emerald); }
+    .icon-soon { background: rgba(245, 158, 11, 0.15); color: var(--amber); }
+    .icon-expired { background: rgba(239, 68, 68, 0.15); color: var(--rose); }
 
-    .slider-group { display: flex; gap: 20px; flex-wrap: wrap; }
-    .slider-item { display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: var(--text-sub); }
-    .slider-item input { accent-color: var(--emerald); width: 130px; }
+    /* Quick Action Banner */
+    .hero-banner { background: linear-gradient(135deg, #1e293b, #0f172a); border: 1px solid var(--border); border-radius: 16px; padding: 25px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 20px; }
+    .hero-text h2 { font-size: 22px; font-weight: 800; color: var(--text); }
+    .hero-text p { font-size: 14px; color: var(--text-sub); margin-top: 4px; }
+    .hero-actions { display: flex; gap: 12px; }
 
-    .main-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 20px; }
-    @media (max-width: 768px) { .main-grid { grid-template-columns: 1fr; } }
+    .btn { padding: 10px 20px; border-radius: 10px; font-weight: 600; font-size: 14px; cursor: pointer; border: none; transition: all 0.2s; display: inline-flex; align-items: center; gap: 8px; }
+    .btn-primary { background: var(--primary); color: white; }
+    .btn-primary:hover { background: var(--primary-hover); }
+    .btn-emerald { background: var(--emerald); color: white; }
+    .btn-emerald:hover { background: var(--emerald-hover); }
+    .btn-secondary { background: var(--card-bg); border: 1px solid var(--border); color: var(--text); }
+    .btn-secondary:hover { background: var(--card-hover); }
+    .btn-danger { background: rgba(239, 68, 68, 0.15); color: var(--rose); border: 1px solid var(--rose); }
 
-    .video-card { background: #000; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; position: relative; min-height: 480px; display: flex; justify-content: center; align-items: center; }
-    video { width: 100%; height: 100%; object-fit: cover; display: block; }
+    /* Grid Sections */
+    .section-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 20px; }
+    @media (max-width: 900px) { .section-grid { grid-template-columns: 1fr; } }
+
+    .card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 14px; padding: 20px; display: flex; flex-direction: column; gap: 15px; }
+    .card-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 12px; }
+    .card-header h3 { font-size: 15px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-sub); }
+
+    /* Inventory Items List & Filter */
+    .filter-bar { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; background: var(--card-bg); border: 1px solid var(--border); padding: 15px; border-radius: 14px; }
+    .search-box { display: flex; align-items: center; gap: 8px; background: var(--bg); border: 1px solid var(--border); padding: 8px 14px; border-radius: 8px; flex: 1; min-width: 200px; }
+    .search-box input { background: transparent; border: none; color: var(--text); font-size: 14px; outline: none; width: 100%; }
+    .filter-selects { display: flex; gap: 10px; flex-wrap: wrap; }
+    select { background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 8px 12px; border-radius: 8px; font-size: 13px; outline: none; cursor: pointer; }
+
+    .inventory-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
+    .inventory-card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 10px; transition: transform 0.2s, border-color 0.2s; }
+    .inventory-card:hover { border-color: var(--primary); transform: translateY(-2px); }
+    .inv-top { display: flex; justify-content: space-between; align-items: flex-start; }
+    .inv-title { font-size: 16px; font-weight: 700; text-transform: capitalize; }
+    .inv-badge { font-size: 11px; font-weight: 700; padding: 4px 8px; border-radius: 6px; text-transform: uppercase; }
+    .badge-healthy { background: rgba(16, 185, 129, 0.15); color: var(--emerald); border: 1px solid var(--emerald); }
+    .badge-soon { background: rgba(245, 158, 11, 0.15); color: var(--amber); border: 1px solid var(--amber); }
+    .badge-expired { background: rgba(239, 68, 68, 0.15); color: var(--rose); border: 1px solid var(--rose); }
+
+    .inv-meta { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--text-sub); }
+    .inv-actions { display: flex; gap: 8px; margin-top: 5px; }
+
+    /* Scan View Controls & Camera */
+    .scan-viewport-container { position: relative; background: #000; border-radius: 14px; overflow: hidden; border: 1px solid var(--border); aspect-ratio: 16/9; max-height: 520px; display: flex; align-items: center; justify-content: center; }
+    video { width: 100%; height: 100%; object-fit: cover; }
     canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
 
-    .hud-bar { position: absolute; top: 12px; left: 12px; right: 12px; background: rgba(11, 15, 25, 0.85); backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 10px 16px; display: flex; justify-content: space-between; font-size: 13px; font-weight: 600; }
-    .hud-stat { display: flex; align-items: center; gap: 6px; }
-    .hud-val { color: var(--emerald); font-family: monospace; font-size: 15px; }
+    .scan-hud { position: absolute; top: 15px; left: 15px; background: rgba(11, 15, 25, 0.85); backdrop-filter: blur(6px); border: 1px solid var(--border); padding: 8px 16px; border-radius: 10px; display: flex; gap: 16px; font-size: 13px; font-weight: 600; }
+    .scan-hud span { color: var(--primary); font-weight: 800; }
 
-    .side-panel { display: flex; flex-direction: column; gap: 16px; }
-    .panel-card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px; padding: 16px; }
-    .panel-card h3 { font-size: 15px; font-weight: 600; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
-
-    .item-tags { display: flex; flex-wrap: wrap; gap: 8px; }
-    .tag-item { background: rgba(16, 185, 129, 0.15); border: 1px solid var(--emerald); color: var(--emerald); padding: 6px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; }
-    .empty-state { font-size: 12px; color: var(--text-sub); font-style: italic; }
-
-    .validation-form { display: flex; flex-direction: column; gap: 10px; font-size: 13px; }
-    .validation-form label { color: var(--text-sub); font-size: 12px; }
-    .validation-form select { background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 8px; border-radius: 6px; }
+    /* Confirmation Modal */
+    .modal-backdrop { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.75); backdrop-filter: blur(4px); display: none; align-items: center; justify-content: center; z-index: 100; padding: 20px; }
+    .modal-backdrop.open { display: flex; }
+    .modal-card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 16px; width: 100%; max-width: 650px; max-height: 90vh; overflow-y: auto; padding: 25px; display: flex; flex-direction: column; gap: 20px; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5); }
     
-    .status-badge { display: inline-block; padding: 6px 12px; border-radius: 6px; font-weight: 700; font-size: 12px; text-align: center; margin-top: 4px; }
-    .status-pass { background: rgba(16, 185, 129, 0.2); color: var(--emerald); border: 1px solid var(--emerald); }
-    .status-fail { background: rgba(239, 68, 68, 0.2); color: var(--status-expired); border: 1px solid var(--status-expired); }
-    .status-none { background: rgba(148, 163, 184, 0.2); color: var(--text-sub); border: 1px solid var(--text-sub); }
+    .confirm-item-row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; background: var(--bg); border: 1px solid var(--border); padding: 14px; border-radius: 10px; }
+    .confirm-item-info { display: flex; flex-direction: column; gap: 2px; }
+    .confirm-controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .qty-stepper { display: flex; align-items: center; gap: 6px; background: var(--card-bg); border: 1px solid var(--border); border-radius: 6px; padding: 2px 8px; }
+    .step-btn { background: transparent; border: none; color: var(--text); font-weight: 800; font-size: 16px; cursor: pointer; padding: 2px 6px; }
+
+    /* Mobile Bottom Navigation */
+    .bottom-nav { display: none; position: fixed; bottom: 0; left: 0; right: 0; background: var(--card-bg); border-top: 1px solid var(--border); height: 60px; z-index: 90; justify-content: space-around; align-items: center; }
+    .bottom-nav button { background: transparent; border: none; color: var(--text-sub); display: flex; flex-direction: column; align-items: center; gap: 3px; font-size: 11px; cursor: pointer; }
+    .bottom-nav button.active { color: var(--primary); font-weight: 700; }
+
+    @media (max-width: 768px) {
+      .sidebar { display: none; }
+      .bottom-nav { display: flex; }
+      .content-container { padding: 15px 15px 80px 15px; }
+    }
   </style>
 </head>
 <body>
-  <div class="container">
-    <header>
-      <h1><i class="fa-solid fa-camera-rotate"></i> FreshGuard Vision</h1>
-      <span style="font-size: 12px; background: rgba(59,130,246,0.2); color: var(--primary); padding: 4px 10px; border-radius: 12px; border: 1px solid var(--primary);">35-Class Grocery & Vegetable Detection</span>
-    </header>
+  <div class="app-shell">
+    <!-- Desktop Sidebar Navigation -->
+    <aside class="sidebar">
+      <a href="#" class="brand-logo"><i class="fa-solid fa-leaf"></i> FreshGuard</a>
+      <div class="brand-tagline">Know what's fresh. Waste less.</div>
 
-    <div class="controls-card">
-      <div class="btn-group">
-        <button class="btn btn-start" id="start-cam-btn" onclick="startCamera()"><i class="fa-solid fa-play"></i> START CAMERA</button>
-        <button class="btn btn-stop" id="stop-cam-btn" onclick="stopCamera()" disabled><i class="fa-solid fa-stop"></i> STOP CAMERA</button>
-      </div>
+      <ul class="nav-list">
+        <li class="nav-item"><button class="active" onclick="switchTab('dashboard')"><i class="fa-solid fa-chart-pie"></i> Dashboard</button></li>
+        <li class="nav-item"><button onclick="switchTab('scan')"><i class="fa-solid fa-camera-rotate"></i> Smart Scan</button></li>
+        <li class="nav-item"><button onclick="switchTab('inventory')"><i class="fa-solid fa-boxes-stacked"></i> Inventory</button></li>
+        <li class="nav-item"><button onclick="switchTab('freshness')"><i class="fa-solid fa-hourglass-half"></i> Freshness</button></li>
+        <li class="nav-item"><button onclick="switchTab('shopping')"><i class="fa-solid fa-cart-shopping"></i> Shopping List</button></li>
+        <li class="nav-item"><button onclick="switchTab('settings')"><i class="fa-solid fa-sliders"></i> Settings</button></li>
+      </ul>
 
-      <div class="slider-group">
-        <div class="slider-item">
-          <label>Confidence Threshold: <strong id="conf-val">0.25</strong></label>
-          <input type="range" id="conf-slider" min="0.10" max="0.90" step="0.05" value="0.25" oninput="document.getElementById('conf-val').innerText = this.value">
+      <button class="nav-cta" onclick="switchTab('scan')"><i class="fa-solid fa-expand"></i> SCAN GROCERY</button>
+    </aside>
+
+    <div class="main-wrapper">
+      <!-- Top Header Bar -->
+      <header class="top-bar">
+        <div class="top-title" id="page-title-text">Dashboard</div>
+        <div class="user-profile">
+          <span id="user-display-email" style="font-size: 13px; color: var(--text-sub);">Guest Session</span>
+          <button class="auth-btn" id="auth-modal-btn" onclick="openAuthModal()"><i class="fa-solid fa-right-to-bracket"></i> Login</button>
         </div>
-        <div class="slider-item">
-          <label>IoU Threshold: <strong id="iou-val">0.45</strong></label>
-          <input type="range" id="iou-slider" min="0.10" max="0.90" step="0.05" value="0.45" oninput="document.getElementById('iou-val').innerText = this.value">
-        </div>
-      </div>
+      </header>
+
+      <main class="content-container">
+        <!-- DASHBOARD TAB -->
+        <section id="tab-dashboard" class="tab-view active">
+          <div class="hero-banner">
+            <div class="hero-text">
+              <h2>Good morning 👋</h2>
+              <p>Let's keep your food fresh and reduce household waste.</p>
+            </div>
+            <div class="hero-actions">
+              <button class="btn btn-emerald" onclick="switchTab('scan')"><i class="fa-solid fa-camera"></i> SCAN GROCERY</button>
+              <button class="btn btn-secondary" onclick="openManualAddModal()"><i class="fa-solid fa-plus"></i> Add Manually</button>
+            </div>
+          </div>
+
+          <div class="stat-grid">
+            <div class="stat-card">
+              <div class="stat-info">
+                <label>TOTAL ITEMS</label>
+                <div class="stat-value" id="stat-total">0</div>
+              </div>
+              <div class="stat-icon icon-total"><i class="fa-solid fa-cubes"></i></div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-info">
+                <label>FRESH</label>
+                <div class="stat-value" id="stat-fresh" style="color: var(--emerald);">0</div>
+              </div>
+              <div class="stat-icon icon-fresh"><i class="fa-solid fa-circle-check"></i></div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-info">
+                <label>USE SOON</label>
+                <div class="stat-value" id="stat-soon" style="color: var(--amber);">0</div>
+              </div>
+              <div class="stat-icon icon-soon"><i class="fa-solid fa-clock-rotate-left"></i></div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-info">
+                <label>EXPIRED</label>
+                <div class="stat-value" id="stat-expired" style="color: var(--rose);">0</div>
+              </div>
+              <div class="stat-icon icon-expired"><i class="fa-solid fa-triangle-exclamation"></i></div>
+            </div>
+          </div>
+
+          <div class="section-grid">
+            <div class="card">
+              <div class="card-header">
+                <h3>Recently Scanned & Added</h3>
+                <button class="btn btn-secondary" style="padding: 4px 10px; font-size: 12px;" onclick="switchTab('inventory')">View All</button>
+              </div>
+              <div id="dashboard-recent-list" class="inventory-grid" style="grid-template-columns: 1fr;">
+                <div style="font-size: 13px; color: var(--text-sub); font-style: italic;">No items scanned yet. Use FreshGuard Vision to scan your groceries!</div>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card-header">
+                <h3>Urgent — Use Soon</h3>
+              </div>
+              <div id="dashboard-use-soon-list" style="display: flex; flex-direction: column; gap: 10px;">
+                <div style="font-size: 13px; color: var(--text-sub); font-style: italic;">No items currently expiring.</div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- SMART SCAN TAB -->
+        <section id="tab-scan" class="tab-view">
+          <div class="card">
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
+              <div>
+                <h2 style="font-size: 20px; font-weight: 800;">Scan Your Groceries</h2>
+                <p style="font-size: 13px; color: var(--text-sub);">Show your items to FreshGuard Vision (35-Class AI Object Detector).</p>
+              </div>
+              <div style="display: flex; gap: 10px;">
+                <button class="btn btn-emerald" id="scan-start-btn" onclick="startCamera()"><i class="fa-solid fa-play"></i> START CAMERA</button>
+                <button class="btn btn-danger" id="scan-stop-btn" onclick="stopCamera()" disabled><i class="fa-solid fa-stop"></i> STOP CAMERA</button>
+                <label class="btn btn-secondary" style="cursor: pointer;">
+                  <i class="fa-solid fa-upload"></i> UPLOAD IMAGE
+                  <input type="file" id="scan-file-input" accept="image/*" style="display: none;" onchange="handleImageUpload(event)">
+                </label>
+              </div>
+            </div>
+
+            <div style="display: flex; gap: 20px; align-items: center; margin-top: 10px; font-size: 12px; color: var(--text-sub);">
+              <span>Conf Threshold: <strong id="conf-val-txt" style="color: var(--text);">0.25</strong></span>
+              <input type="range" id="conf-slider" min="0.10" max="0.90" step="0.05" value="0.25" oninput="document.getElementById('conf-val-txt').innerText = this.value">
+              <span>IoU Threshold: <strong id="iou-val-txt" style="color: var(--text);">0.45</strong></span>
+              <input type="range" id="iou-slider" min="0.10" max="0.90" step="0.05" value="0.45" oninput="document.getElementById('iou-val-txt').innerText = this.value">
+            </div>
+
+            <div class="scan-viewport-container">
+              <video id="scan-video" autoplay playsinline muted></video>
+              <canvas id="scan-canvas"></canvas>
+
+              <div class="scan-hud">
+                <div>Objects: <span id="hud-objs">0</span></div>
+                <div>FPS: <span id="hud-fps">0.0</span></div>
+                <div>Latency: <span id="hud-lat">0 ms</span></div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- INVENTORY TAB -->
+        <section id="tab-inventory" class="tab-view">
+          <div class="filter-bar">
+            <div class="search-box">
+              <i class="fa-solid fa-magnifying-glass" style="color: var(--text-sub);"></i>
+              <input type="text" id="inv-search" placeholder="Search inventory items..." oninput="renderInventoryUI()">
+            </div>
+            <div class="filter-selects">
+              <select id="inv-filter-cat" onchange="renderInventoryUI()">
+                <option value="All">All Categories</option>
+                <option value="Vegetables">Vegetables</option>
+                <option value="Fruits">Fruits</option>
+                <option value="Dairy">Dairy</option>
+                <option value="Bakery">Bakery</option>
+                <option value="Grains">Grains</option>
+                <option value="Beverages">Beverages</option>
+                <option value="Packaged Goods">Packaged Goods</option>
+              </select>
+
+              <select id="inv-filter-loc" onchange="renderInventoryUI()">
+                <option value="All">All Locations</option>
+                <option value="Fridge">Fridge</option>
+                <option value="Freezer">Freezer</option>
+                <option value="Pantry">Pantry</option>
+                <option value="Kitchen Shelf">Kitchen Shelf</option>
+              </select>
+
+              <select id="inv-filter-status" onchange="renderInventoryUI()">
+                <option value="All">All Statuses</option>
+                <option value="Healthy">Fresh</option>
+                <option value="Expiring Soon">Use Soon</option>
+                <option value="Expired">Expired</option>
+              </select>
+            </div>
+          </div>
+
+          <div id="inventory-items-container" class="inventory-grid">
+            <!-- Dynamic inventory cards -->
+          </div>
+        </section>
+
+        <!-- FRESHNESS TAB -->
+        <section id="tab-freshness" class="tab-view">
+          <div class="card">
+            <h2>Freshness & Expiry Guidance</h2>
+            <p style="font-size: 13px; color: var(--text-sub);">
+              Disclaimer: Expiration dates are calculated estimates based on standard food safety rules. FreshGuard Vision camera detection does not measure chemical food spoilage.
+            </p>
+          </div>
+
+          <div class="section-grid">
+            <div class="card">
+              <h3>Items Needing Attention (Expiring Soon / Expired)</h3>
+              <div id="freshness-urgent-list" class="inventory-grid" style="grid-template-columns: 1fr;"></div>
+            </div>
+            <div class="card">
+              <h3>Fresh Items</h3>
+              <div id="freshness-healthy-list" class="inventory-grid" style="grid-template-columns: 1fr;"></div>
+            </div>
+          </div>
+        </section>
+      </main>
     </div>
+  </div>
 
-    <div class="main-grid">
-      <div class="video-card">
-        <video id="webcam-video" autoplay playsinline muted></video>
-        <canvas id="overlay-canvas"></canvas>
+  <!-- Mobile Bottom Navigation Bar -->
+  <nav class="bottom-nav">
+    <button class="active" onclick="switchTab('dashboard')"><i class="fa-solid fa-chart-pie"></i>Dashboard</button>
+    <button onclick="switchTab('scan')"><i class="fa-solid fa-camera"></i>Scan</button>
+    <button onclick="switchTab('inventory')"><i class="fa-solid fa-boxes-stacked"></i>Inventory</button>
+    <button onclick="switchTab('freshness')"><i class="fa-solid fa-hourglass-half"></i>Freshness</button>
+  </nav>
 
-        <div class="hud-bar">
-          <div class="hud-stat"><i class="fa-solid fa-cubes"></i> Objects: <span class="hud-val" id="hud-objects">0</span></div>
-          <div class="hud-stat"><i class="fa-solid fa-bolt"></i> FPS: <span class="hud-val" id="hud-fps">0.0</span></div>
-          <div class="hud-stat"><i class="fa-solid fa-stopwatch"></i> Latency: <span class="hud-val" id="hud-latency">0 ms</span></div>
-        </div>
+  <!-- DETECTION REVIEW & CONFIRMATION MODAL -->
+  <div class="modal-backdrop" id="confirm-modal">
+    <div class="modal-card">
+      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 12px;">
+        <h2 style="font-size: 18px; font-weight: 800;">Review Detected Items</h2>
+        <button class="btn btn-secondary" style="padding: 4px 10px;" onclick="closeConfirmModal()"><i class="fa-solid fa-xmark"></i></button>
       </div>
 
-      <div class="side-panel">
-        <div class="panel-card">
-          <h3><i class="fa-solid fa-basket-shopping" style="color: var(--emerald);"></i> Detected Items</h3>
-          <div class="item-tags" id="detected-items-list">
-            <span class="empty-state">Start camera to detect grocery items</span>
-          </div>
-        </div>
+      <p style="font-size: 13px; color: var(--text-sub);">
+        FreshGuard Vision detected the following items. Confirm quantity, category, and storage location before adding to your inventory.
+      </p>
 
-        <div class="panel-card">
-          <h3><i class="fa-solid fa-clipboard-check" style="color: var(--primary);"></i> Validation Panel</h3>
-          <div class="validation-form">
-            <label>Expected Target Class:</label>
-            <select id="val-expected-select">
-              <option value="carrot">carrot (15)</option>
-              <option value="tomato">tomato (5)</option>
-              <option value="potato">potato (6)</option>
-              <option value="onion">onion (7)</option>
-              <option value="capsicum">capsicum (18)</option>
-              <option value="cucumber">cucumber (19)</option>
-              <option value="cauliflower">cauliflower (17)</option>
-              <option value="brinjal">brinjal (20)</option>
-              <option value="broccoli">broccoli (21)</option>
-              <option value="cabbage">cabbage (16)</option>
-              <option value="spinach">spinach (22)</option>
-              <option value="peas">peas (23)</option>
-              <option value="corn">corn (24)</option>
-              <option value="garlic">garlic (25)</option>
-              <option value="ginger">ginger (26)</option>
-              <option value="okra">okra (27)</option>
-              <option value="beetroot">beetroot (28)</option>
-              <option value="radish">radish (29)</option>
-              <option value="pumpkin">pumpkin (30)</option>
-              <option value="bitter_gourd">bitter_gourd (31)</option>
-              <option value="bottle_gourd">bottle_gourd (32)</option>
-              <option value="green_chilli">green_chilli (33)</option>
-              <option value="sweet_potato">sweet_potato (34)</option>
-              <option value="milk">milk (0)</option>
-              <option value="bread">bread (1)</option>
-              <option value="apple">apple (2)</option>
-              <option value="banana">banana (3)</option>
-              <option value="egg">egg (4)</option>
-              <option value="rice">rice (8)</option>
-              <option value="yogurt">yogurt (9)</option>
-              <option value="cheese">cheese (10)</option>
-              <option value="biscuit">biscuit (11)</option>
-              <option value="juice">juice (12)</option>
-              <option value="water">water (13)</option>
-              <option value="packaged_snack">packaged_snack (14)</option>
-            </select>
+      <div id="confirm-items-list" style="display: flex; flex-direction: column; gap: 12px;">
+        <!-- Dynamic aggregated detection rows -->
+      </div>
 
-            <label>Actual Inference Match:</label>
-            <div id="val-actual-detection" style="font-weight: 600; color: var(--emerald);">None</div>
-
-            <label>Confidence Score:</label>
-            <div id="val-confidence" style="font-family: monospace;">0.00</div>
-
-            <div id="val-status-badge" class="status-badge status-none">NOT DETECTED</div>
-          </div>
-        </div>
+      <div style="display: flex; gap: 12px; justify-content: flex-end; margin-top: 10px;">
+        <button class="btn btn-secondary" onclick="closeConfirmModal()">Scan Again</button>
+        <button class="btn btn-emerald" onclick="submitConfirmedDetections()"><i class="fa-solid fa-check"></i> ADD TO INVENTORY</button>
       </div>
     </div>
   </div>
@@ -172,73 +374,191 @@
   <script>
     const API_BASE = window.API_BASE_URL || localStorage.getItem('freshguard_api_url') || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? "http://127.0.0.1:8000/api/v1" : "https://freshguard-ai-auef.onrender.com/api/v1");
 
-    let videoElem = document.getElementById('webcam-video');
-    let canvasElem = document.getElementById('overlay-canvas');
-    let ctx = canvasElem.getContext('2d');
-    
-    let mediaStream = null;
-    let isRunning = false;
+    let inventoryCache = [];
+    let activeStream = null;
     let isProcessingFrame = false;
-    let frameTimer = null;
     let lastFrameTime = performance.now();
+    let currentDetectionsToReview = [];
 
+    const videoElem = document.getElementById('scan-video');
+    const canvasElem = document.getElementById('scan-canvas');
+    const ctx = canvasElem.getContext('2d');
+
+    function switchTab(tabName) {
+      document.querySelectorAll('.tab-view').forEach(el => el.classList.remove('active'));
+      document.querySelectorAll('.nav-item button, .bottom-nav button').forEach(el => el.classList.remove('active'));
+
+      const target = document.getElementById(`tab-${tabName}`);
+      if (target) target.classList.add('active');
+
+      document.getElementById('page-title-text').innerText = tabName.charAt(0).toUpperCase() + tabName.slice(1);
+
+      if (tabName === 'inventory' || tabName === 'dashboard' || tabName === 'freshness') {
+        loadInventoryData();
+      }
+    }
+
+    async function loadInventoryData() {
+      const token = localStorage.getItem('freshguard_token');
+      try {
+        const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+        const res = await fetch(`${API_BASE}/inventory`, { headers });
+        if (res.ok) {
+          inventoryCache = await res.json();
+          renderDashboardUI();
+          renderInventoryUI();
+          renderFreshnessUI();
+        }
+      } catch (err) {
+        console.warn("Inventory load fallback:", err);
+      }
+    }
+
+    function renderDashboardUI() {
+      const total = inventoryCache.length;
+      const fresh = inventoryCache.filter(i => i.status === 'Healthy').length;
+      const soon = inventoryCache.filter(i => i.status === 'Expiring Soon' || i.status === 'Running Low').length;
+      const expired = inventoryCache.filter(i => i.status === 'Expired').length;
+
+      document.getElementById('stat-total').innerText = total;
+      document.getElementById('stat-fresh').innerText = fresh;
+      document.getElementById('stat-soon').innerText = soon;
+      document.getElementById('stat-expired').innerText = expired;
+
+      // Render Recent List
+      const recentContainer = document.getElementById('dashboard-recent-list');
+      const recents = [...inventoryCache].slice(0, 4);
+      if (recents.length === 0) {
+        recentContainer.innerHTML = `<div style="font-size: 13px; color: var(--text-sub); font-style: italic;">No items scanned yet. Use FreshGuard Vision to scan your groceries!</div>`;
+      } else {
+        recentContainer.innerHTML = recents.map(item => createInventoryCardHTML(item)).join('');
+      }
+
+      // Render Use Soon List
+      const soonContainer = document.getElementById('dashboard-use-soon-list');
+      const urgent = inventoryCache.filter(i => i.status === 'Expiring Soon' || i.status === 'Expired');
+      if (urgent.length === 0) {
+        soonContainer.innerHTML = `<div style="font-size: 13px; color: var(--text-sub); font-style: italic;">No items currently expiring soon.</div>`;
+      } else {
+        soonContainer.innerHTML = urgent.map(item => `
+          <div class="confirm-item-row">
+            <div>
+              <strong style="text-transform: capitalize;">${item.product_name}</strong>
+              <div style="font-size: 12px; color: var(--text-sub);">${item.storage_location} • ${item.quantity} ${item.unit}</div>
+            </div>
+            <button class="btn btn-secondary" style="padding: 4px 10px; font-size: 12px;" onclick="consumeItem(${item.id})">Log Consumed</button>
+          </div>
+        `).join('');
+      }
+    }
+
+    function renderInventoryUI() {
+      const search = document.getElementById('inv-search').value.toLowerCase();
+      const cat = document.getElementById('inv-filter-cat').value;
+      const loc = document.getElementById('inv-filter-loc').value;
+      const st = document.getElementById('inv-filter-status').value;
+
+      const filtered = inventoryCache.filter(item => {
+        const matchesSearch = item.product_name.toLowerCase().includes(search);
+        const matchesCat = cat === 'All' || item.category === cat;
+        const matchesLoc = loc === 'All' || item.storage_location === loc;
+        const matchesSt = st === 'All' || item.status === st;
+        return matchesSearch && matchesCat && matchesLoc && matchesSt;
+      });
+
+      const container = document.getElementById('inventory-items-container');
+      if (filtered.length === 0) {
+        container.innerHTML = `<div style="grid-column: 1/-1; padding: 40px; text-align: center; color: var(--text-sub); font-style: italic;">No matching groceries found in your inventory.</div>`;
+      } else {
+        container.innerHTML = filtered.map(item => createInventoryCardHTML(item)).join('');
+      }
+    }
+
+    function createInventoryCardHTML(item) {
+      const badgeClass = item.status === 'Healthy' ? 'badge-healthy' : (item.status === 'Expired' ? 'badge-expired' : 'badge-soon');
+      const badgeText = item.status === 'Healthy' ? 'FRESH' : item.status.toUpperCase();
+      const expTxt = item.days_until_expiry !== null ? `${item.days_until_expiry} days remaining` : 'Date unavailable';
+
+      return `
+        <div class="inventory-card">
+          <div class="inv-top">
+            <div class="inv-title">${item.product_name}</div>
+            <span class="inv-badge ${badgeClass}">${badgeText}</span>
+          </div>
+          <div class="inv-meta">
+            <div>Category: <strong>${item.category}</strong></div>
+            <div>Quantity: <strong>${item.quantity} ${item.unit}</strong></div>
+            <div>Location: <strong>${item.storage_location}</strong></div>
+            <div>Expires: <strong>${expTxt}</strong></div>
+          </div>
+          <div class="inv-actions">
+            <button class="btn btn-secondary" style="flex:1; padding: 6px;" onclick="consumeItem(${item.id})"><i class="fa-solid fa-check"></i> Consume</button>
+            <button class="btn btn-danger" style="padding: 6px;" onclick="deleteItem(${item.id})"><i class="fa-solid fa-trash"></i></button>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderFreshnessUI() {
+      const urgent = inventoryCache.filter(i => i.status === 'Expiring Soon' || i.status === 'Expired');
+      const healthy = inventoryCache.filter(i => i.status === 'Healthy');
+
+      document.getElementById('freshness-urgent-list').innerHTML = urgent.length ? urgent.map(i => createInventoryCardHTML(i)).join('') : '<div style="color: var(--text-sub); italic;">No items requiring urgent attention.</div>';
+      document.getElementById('freshness-healthy-list').innerHTML = healthy.length ? healthy.map(i => createInventoryCardHTML(i)).join('') : '<div style="color: var(--text-sub); italic;">No fresh items logged.</div>';
+    }
+
+    async function consumeItem(id) {
+      const token = localStorage.getItem('freshguard_token');
+      const headers = token ? { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' } : { 'Content-Type': 'application/json' };
+      await fetch(`${API_BASE}/inventory/${id}/consume`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ quantity_consumed: 1.0, log_type: 'consumed' })
+      });
+      loadInventoryData();
+    }
+
+    async function deleteItem(id) {
+      const token = localStorage.getItem('freshguard_token');
+      const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+      await fetch(`${API_BASE}/inventory/${id}`, { method: 'DELETE', headers });
+      loadInventoryData();
+    }
+
+    /* Camera & Vision Scan */
     async function startCamera() {
       try {
-        mediaStream = await navigator.mediaDevices.getUserMedia({
-          video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: "environment" }
-        });
-        videoElem.srcObject = mediaStream;
-        await videoElem.play();
-
-        canvasElem.width = videoElem.videoWidth || 640;
-        canvasElem.height = videoElem.videoHeight || 480;
-
-        isRunning = true;
-        document.getElementById('start-cam-btn').disabled = true;
-        document.getElementById('stop-cam-btn').disabled = false;
-
-        scheduleFrameProcessing();
+        activeStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } } });
+        videoElem.srcObject = activeStream;
+        document.getElementById('scan-start-btn').disabled = true;
+        document.getElementById('scan-stop-btn').disabled = false;
+        requestAnimationFrame(processScanLoop);
       } catch (err) {
-        alert("Unable to access camera: " + err.message + "\n\nPlease allow browser camera permissions.");
+        alert("Camera access denied or device unavailable.");
       }
     }
 
     function stopCamera() {
-      isRunning = false;
-      if (frameTimer) clearTimeout(frameTimer);
-
-      if (mediaStream) {
-        mediaStream.getTracks().forEach(track => track.stop());
-        mediaStream = null;
+      if (activeStream) {
+        activeStream.getTracks().forEach(t => t.stop());
+        activeStream = null;
       }
       videoElem.srcObject = null;
-      ctx.clearRect(0, 0, canvasElem.width, canvasElem.height);
-
-      document.getElementById('start-cam-btn').disabled = false;
-      document.getElementById('stop-cam-btn').disabled = true;
-
-      document.getElementById('hud-objects').innerText = '0';
-      document.getElementById('hud-fps').innerText = '0.0';
-      document.getElementById('hud-latency').innerText = '0 ms';
-      document.getElementById('detected-items-list').innerHTML = '<span class="empty-state">Camera stopped</span>';
+      document.getElementById('scan-start-btn').disabled = false;
+      document.getElementById('scan-stop-btn').disabled = true;
     }
 
-    function scheduleFrameProcessing() {
-      if (!isRunning) return;
-      frameTimer = setTimeout(async () => {
-        if (!isProcessingFrame && videoElem.readyState === 4) {
-          await captureAndInferFrame();
-        }
-        scheduleFrameProcessing();
-      }, 150); // Process frame every ~150ms
+    async function processScanLoop() {
+      if (!activeStream) return;
+      if (!isProcessingFrame && videoElem.readyState === 4) {
+        isProcessingFrame = true;
+        await captureAndDetectFrame();
+      }
+      requestAnimationFrame(processScanLoop);
     }
 
-    async function captureAndInferFrame() {
-      isProcessingFrame = true;
-      const t0 = performance.now();
-
+    async function captureAndDetectFrame() {
       try {
-        // Draw video frame to temporary offscreen canvas
         const tempCanvas = document.createElement('canvas');
         tempCanvas.width = videoElem.videoWidth || 640;
         tempCanvas.height = videoElem.videoHeight || 480;
@@ -246,11 +566,9 @@
         tempCtx.drawImage(videoElem, 0, 0, tempCanvas.width, tempCanvas.height);
 
         const dataUrl = tempCanvas.toDataURL('image/jpeg', 0.85);
-
         const confVal = parseFloat(document.getElementById('conf-slider').value);
         const iouVal = parseFloat(document.getElementById('iou-slider').value);
 
-        // Call real server-side V2 inference endpoint
         const res = await fetch(`${API_BASE}/scanner/vision/detect_v2?conf=${confVal}&iou=${iouVal}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -263,21 +581,23 @@
         lastFrameTime = t1;
 
         if (data.success && Array.isArray(data.detections)) {
-          renderDetections(data.detections, tempCanvas.width, tempCanvas.height);
-          updateHUD(data.count, fps, data.inference_ms);
-          updateItemList(data.detections);
-          updateValidationPanel(data.detections);
-        } else {
-          showErrorState(data.message || "Vision inference unavailable");
+          renderBoundingBoxes(data.detections, tempCanvas.width, tempCanvas.height);
+          document.getElementById('hud-objs').innerText = data.count;
+          document.getElementById('hud-fps').innerText = fps;
+          document.getElementById('hud-lat').innerText = `${data.inference_ms} ms`;
+
+          if (data.detections.length > 0 && !document.getElementById('confirm-modal').classList.contains('open')) {
+            openReviewConfirmationModal(data.detections);
+          }
         }
       } catch (err) {
-        showErrorState("Vision inference unavailable");
+        console.warn("Vision detect error:", err);
       } finally {
         isProcessingFrame = false;
       }
     }
 
-    function renderDetections(detections, vidW, vidH) {
+    function renderBoundingBoxes(detections, vidW, vidH) {
       canvasElem.width = videoElem.clientWidth || vidW;
       canvasElem.height = videoElem.clientHeight || vidH;
       ctx.clearRect(0, 0, canvasElem.width, canvasElem.height);
@@ -292,75 +612,107 @@
         const sw = (x2 - x1) * scaleX;
         const sh = (y2 - y1) * scaleY;
 
-        // Draw bounding box
         ctx.strokeStyle = '#10b981';
         ctx.lineWidth = 3;
         ctx.strokeRect(sx1, sy1, sw, sh);
 
-        // Draw label background
-        const labelText = `${det.class_name} ${(det.confidence * 100).toFixed(0)}%`;
-        ctx.font = '600 13px Inter, sans-serif';
-        const textWidth = ctx.measureText(labelText).width;
-
         ctx.fillStyle = '#10b981';
-        ctx.fillRect(sx1, Math.max(sy1 - 22, 0), textWidth + 12, 22);
-
-        // Draw label text
-        ctx.fillStyle = '#ffffff';
-        ctx.fillText(labelText, sx1 + 6, Math.max(sy1 - 6, 16));
+        ctx.font = 'bold 12px Inter, sans-serif';
+        ctx.fillText(`${det.class_name} ${(det.confidence * 100).toFixed(0)}%`, sx1 + 4, sy1 > 18 ? sy1 - 6 : sy1 + 14);
       });
     }
 
-    function updateHUD(count, fps, latencyMs) {
-      document.getElementById('hud-objects').innerText = count;
-      document.getElementById('hud-fps').innerText = fps;
-      document.getElementById('hud-latency').innerText = `${latencyMs} ms`;
+    function openReviewConfirmationModal(detections) {
+      stopCamera();
+      // Aggregate duplicate classes
+      const aggregated = {};
+      detections.forEach(d => {
+        const cid = d.class_id;
+        if (!aggregated[cid]) {
+          aggregated[cid] = {
+            class_id: d.class_id,
+            name: d.class_name,
+            quantity: 1,
+            confidence: d.confidence,
+            location: 'Fridge'
+          };
+        } else {
+          aggregated[cid].quantity += 1;
+        }
+      });
+
+      currentDetectionsToReview = Object.values(aggregated);
+      renderConfirmationModalRows();
+      document.getElementById('confirm-modal').classList.add('open');
     }
 
-    function updateItemList(detections) {
-      const container = document.getElementById('detected-items-list');
-      if (detections.length === 0) {
-        container.innerHTML = '<span class="empty-state">No items in view</span>';
-        return;
-      }
-
-      const uniqueClasses = [...new Set(detections.map(d => d.class_name))];
-      container.innerHTML = uniqueClasses.map(c => `<span class="tag-item">${c}</span>`).join('');
+    function renderConfirmationModalRows() {
+      const container = document.getElementById('confirm-items-list');
+      container.innerHTML = currentDetectionsToReview.map((item, idx) => `
+        <div class="confirm-item-row">
+          <div class="confirm-item-info">
+            <strong style="text-transform: capitalize; font-size: 15px;">${item.name}</strong>
+            <span style="font-size: 11px; color: var(--emerald);">Confidence ${(item.confidence * 100).toFixed(1)}%</span>
+          </div>
+          <div class="confirm-controls">
+            <div class="qty-stepper">
+              <button class="step-btn" onclick="updateConfirmQty(${idx}, -1)">-</button>
+              <span style="font-weight: 700; font-size: 13px;">${item.quantity}</span>
+              <button class="step-btn" onclick="updateConfirmQty(${idx}, 1)">+</button>
+            </div>
+            <select onchange="updateConfirmLoc(${idx}, this.value)">
+              <option value="Fridge" ${item.location === 'Fridge' ? 'selected' : ''}>Fridge</option>
+              <option value="Pantry" ${item.location === 'Pantry' ? 'selected' : ''}>Pantry</option>
+              <option value="Freezer" ${item.location === 'Freezer' ? 'selected' : ''}>Freezer</option>
+              <option value="Kitchen Shelf" ${item.location === 'Kitchen Shelf' ? 'selected' : ''}>Kitchen Shelf</option>
+            </select>
+            <button class="btn btn-danger" style="padding: 6px 10px;" onclick="removeConfirmItem(${idx})"><i class="fa-solid fa-trash"></i></button>
+          </div>
+        </div>
+      `).join('');
     }
 
-    function updateValidationPanel(detections) {
-      const expectedClass = document.getElementById('val-expected-select').value;
-      const match = detections.find(d => d.class_name.toLowerCase() === expectedClass.toLowerCase());
+    function updateConfirmQty(idx, delta) {
+      currentDetectionsToReview[idx].quantity = Math.max(1, currentDetectionsToReview[idx].quantity + delta);
+      renderConfirmationModalRows();
+    }
 
-      const actualElem = document.getElementById('val-actual-detection');
-      const confElem = document.getElementById('val-confidence');
-      const badgeElem = document.getElementById('val-status-badge');
+    function updateConfirmLoc(idx, loc) {
+      currentDetectionsToReview[idx].location = loc;
+    }
 
-      if (match) {
-        actualElem.innerText = match.class_name;
-        confElem.innerText = (match.confidence * 100).toFixed(1) + '%';
-        badgeElem.innerText = 'PASS ✅';
-        badgeElem.className = 'status-badge status-pass';
-      } else if (detections.length > 0) {
-        actualElem.innerText = detections[0].class_name;
-        confElem.innerText = (detections[0].confidence * 100).toFixed(1) + '%';
-        badgeElem.innerText = 'FAIL (MISMATCH)';
-        badgeElem.className = 'status-badge status-fail';
+    function removeConfirmItem(idx) {
+      currentDetectionsToReview.splice(idx, 1);
+      renderConfirmationModalRows();
+    }
+
+    function closeConfirmModal() {
+      document.getElementById('confirm-modal').classList.remove('open');
+    }
+
+    async function submitConfirmedDetections() {
+      if (currentDetectionsToReview.length === 0) return closeConfirmModal();
+
+      const token = localStorage.getItem('freshguard_token');
+      const headers = token ? { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' } : { 'Content-Type': 'application/json' };
+
+      const res = await fetch(`${API_BASE}/inventory/from-detections`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ items: currentDetectionsToReview })
+      });
+
+      if (res.ok) {
+        closeConfirmModal();
+        switchTab('inventory');
+        loadInventoryData();
       } else {
-        actualElem.innerText = 'None';
-        confElem.innerText = '0.0%';
-        badgeElem.innerText = 'NOT DETECTED';
-        badgeElem.className = 'status-badge status-none';
+        alert("Failed to save items to inventory.");
       }
     }
 
-    function showErrorState(msg) {
-      ctx.clearRect(0, 0, canvasElem.width, canvasElem.height);
-      document.getElementById('hud-objects').innerText = '0';
-      document.getElementById('hud-fps').innerText = '0.0';
-      document.getElementById('hud-latency').innerText = '0 ms';
-      document.getElementById('detected-items-list').innerHTML = `<span class="empty-state" style="color: var(--status-expired);">${msg}</span>`;
-    }
+    // Initialize
+    loadInventoryData();
   </script>
 </body>
 </html>

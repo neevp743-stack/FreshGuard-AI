@@ -411,13 +411,121 @@ def test_live_webcam_v2_detection_endpoint():
     assert "count" in data
     assert "inference_ms" in data
 
-def test_35_class_metadata_mapping():
-    from app.ai.vision.validate_dataset import load_classes
-    classes = load_classes()
-    assert len(classes) == 35
-    assert classes[0] == "milk"
-    assert classes[14] == "packaged_snack"
-    assert classes[15] == "carrot"
-    assert classes[34] == "sweet_potato"
+def test_35_class_shelf_life_rules():
+    from app.services.shelf_life import get_class_rule, calculate_estimated_expiry
+    rule = get_class_rule(27)  # okra
+    assert rule["name"] == "okra"
+    assert rule["category"] == "Vegetables"
+    assert rule["default_location"] == "Fridge"
+
+    rule_milk = get_class_rule("milk")
+    assert rule_milk["category"] == "Dairy"
+
+    exp = calculate_estimated_expiry(27)
+    assert exp is not None
+
+def test_add_inventory_from_detections():
+    # Register user
+    reg = client.post("/api/v1/auth/register", json={"email": "detuser@freshguard.ai", "password": "password123"})
+    token = reg.json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    payload = {
+        "items": [
+            {
+                "class_id": 27,
+                "name": "Okra",
+                "quantity": 3.0,
+                "unit": "pcs",
+                "location": "Fridge"
+            },
+            {
+                "class_id": 5,
+                "name": "Tomato",
+                "quantity": 2.0,
+                "unit": "pcs",
+                "location": "Fridge"
+            }
+        ]
+    }
+
+    res = client.post("/api/v1/inventory/from-detections", json=payload, headers=headers)
+    assert res.status_code == 200
+    data = res.json()
+    assert len(data) == 2
+    assert data[0]["product_name"] == "Okra"
+    assert data[0]["category"] == "Vegetables"
+    assert data[0]["quantity"] == 3.0
+    assert data[0]["expiry_date"] is not None
+
+def test_reject_invalid_detection_class_id():
+    reg = client.post("/api/v1/auth/register", json={"email": "invalidclass@freshguard.ai", "password": "password123"})
+    token = reg.json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    payload = {
+        "items": [
+            {
+                "class_id": 999,  # Unknown class ID
+                "name": "Alien Food",
+                "quantity": 1.0
+            }
+        ]
+    }
+
+    res = client.post("/api/v1/inventory/from-detections", json=payload, headers=headers)
+    assert res.status_code == 400
+    assert "Invalid class_id: 999" in res.json()["detail"]
+
+def test_bulk_inventory_creation():
+    reg = client.post("/api/v1/auth/register", json={"email": "bulkuser@freshguard.ai", "password": "password123"})
+    token = reg.json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    payload = {
+        "items": [
+            {"product_name": "Milk", "category": "Dairy", "quantity": 1.0, "unit": "bottle"},
+            {"product_name": "Spinach", "category": "Vegetables", "quantity": 2.0, "unit": "bunch"}
+        ]
+    }
+
+    res = client.post("/api/v1/inventory/bulk", json=payload, headers=headers)
+    assert res.status_code == 200
+    data = res.json()
+    assert len(data) == 2
+
+def test_user_inventory_isolation():
+    # User 1
+    reg1 = client.post("/api/v1/auth/register", json={"email": "user1@freshguard.ai", "password": "password123"})
+    t1 = reg1.json()["access_token"]
+
+    # Add item for User 1
+    res_add = client.post("/api/v1/inventory", json={"product_name": "Private Milk"}, headers={"Authorization": f"Bearer {t1}"})
+    item_id = res_add.json()["id"]
+
+    # User 2
+    reg2 = client.post("/api/v1/auth/register", json={"email": "user2@freshguard.ai", "password": "password123"})
+    t2 = reg2.json()["access_token"]
+
+    # User 2 tries to access User 1's item
+    res_get = client.get(f"/api/v1/inventory/{item_id}", headers={"Authorization": f"Bearer {t2}"})
+    assert res_get.status_code == 404
+
+    # User 2 tries to delete User 1's item
+    res_del = client.delete(f"/api/v1/inventory/{item_id}", headers={"Authorization": f"Bearer {t2}"})
+    assert res_del.status_code == 404
+
+def test_consume_inventory_item():
+    reg = client.post("/api/v1/auth/register", json={"email": "consumeuser@freshguard.ai", "password": "password123"})
+    t = reg.json()["access_token"]
+    headers = {"Authorization": f"Bearer {t}"}
+
+    add_res = client.post("/api/v1/inventory", json={"product_name": "Apple", "quantity": 5.0}, headers=headers)
+    item_id = add_res.json()["id"]
+
+    consume_res = client.post(f"/api/v1/inventory/{item_id}/consume", json={"product_name": "Apple", "quantity_consumed": 2.0, "log_type": "consumed"}, headers=headers)
+    assert consume_res.status_code == 200
+    assert consume_res.json()["remaining_quantity"] == 3.0
+
 
 
