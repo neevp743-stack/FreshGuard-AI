@@ -1,0 +1,9 @@
+architecture: YOLOv8n (yolov8n.pt)
+batch_size: 8
+classes_count: 35
+dataset_yaml: C:\Users\neevp\OneDrive\Desktop\SEM_03\IDEA\freshguard-ai\datasets\grocery_vision\data.yaml
+epochs: 5
+experiment_name: grocery_yolov8_v2
+imgsz: 640
+optimizer: auto
+seed: 42
