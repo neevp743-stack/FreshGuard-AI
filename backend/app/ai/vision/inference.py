@@ -68,6 +68,8 @@ def run_vision_inference(image_bytes: bytes) -> VisionDetectResponse:
         return VisionDetectResponse(
             success=False,
             model_version=status.model_version,
+            image_width=0,
+            image_height=0,
             detections=[],
             message="Production vision inference unavailable: Production model baseline is NOT_TRAINED."
         )
@@ -101,6 +103,8 @@ def run_vision_inference(image_bytes: bytes) -> VisionDetectResponse:
         return VisionDetectResponse(
             success=True,
             model_version=status.model_version,
+            image_width=640,
+            image_height=640,
             detections=detections,
             message=f"Production vision inference complete. Found {len(detections)} object(s)."
         )
@@ -109,6 +113,8 @@ def run_vision_inference(image_bytes: bytes) -> VisionDetectResponse:
         return VisionDetectResponse(
             success=False,
             model_version=status.model_version,
+            image_width=0,
+            image_height=0,
             detections=[],
             message=f"Production vision inference error: {ex}"
         )
