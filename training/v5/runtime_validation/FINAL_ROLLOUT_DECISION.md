@@ -9,7 +9,7 @@
 - **Candidate Model**: FreshGuard Vision V5 (644 Grocery Classes)
 - **Candidate SHA-256**: `ad6550f32f07b6ee3ecf69478180ecadb30690f5746e9876b4b23fa181af189e`
 - **Production Baseline**: FreshGuard Vision V2 (35 Produce Classes) $\rightarrow$ **100% UNTOUCHED**
-- **Backend Latency**: `454.34 ms`
+- **Backend Latency**: `385.09 ms`
 - **Reversible Fallback**: `FRESHGUARD_VISION_MODEL=v2` (Default active)
 
 ## Final Verdict

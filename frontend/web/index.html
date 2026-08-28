@@ -719,13 +719,52 @@
       }
     }
 
+    let isBackendWarmed = false;
+    let isWarmingUpInFlight = false;
     let isInferenceInFlight = false;
-    let isFirstInference = true;
+
+    async function ensureBackendWarm() {
+      if (isBackendWarmed) return true;
+      if (isWarmingUpInFlight) return false;
+      isWarmingUpInFlight = true;
+
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 25000);
+
+        showCameraError("Waking up FreshGuard Vision…");
+
+        const res = await fetch(`${API_BASE}/health`, { signal: controller.signal });
+        clearTimeout(timeoutId);
+
+        if (res.ok) {
+          isBackendWarmed = true;
+          hideCameraError();
+          return true;
+        } else {
+          showCameraError(`FreshGuard Vision unavailable — HTTP ${res.status}`);
+          return false;
+        }
+      } catch (err) {
+        console.warn("Backend warmup error:", err);
+        const isTimeout = err.name === 'AbortError';
+        const errMsg = isTimeout ? "Waking up FreshGuard Vision…" : `Backend unreachable — ${err.message || err}`;
+        showCameraError(errMsg);
+        return false;
+      } finally {
+        isWarmingUpInFlight = false;
+      }
+    }
 
     async function captureAndDetectFrame() {
       if (isInferenceInFlight) return;
       if (!videoElem || videoElem.readyState < 2 || !videoElem.videoWidth || !videoElem.videoHeight) {
         return;
+      }
+
+      if (!isBackendWarmed) {
+        const ready = await ensureBackendWarm();
+        if (!ready) return;
       }
 
       isInferenceInFlight = true;
@@ -778,10 +817,9 @@
           requestHeaders['Content-Type'] = 'application/json';
         }
 
-        // Adaptive timeout guard: 25s for initial cold start on Render, 10s for warm inference
-        const timeoutMs = isFirstInference ? 25000 : 10000;
+        // Production-safe inference timeout guard (20s)
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+        const timeoutId = setTimeout(() => controller.abort(), 20000);
 
         let res;
         try {
@@ -791,7 +829,6 @@
             body: payloadBody,
             signal: controller.signal
           });
-          isFirstInference = false;
         } finally {
           clearTimeout(timeoutId);
         }
@@ -833,7 +870,7 @@
         console.warn("Vision detect error:", err);
         const isTimeout = err.name === 'AbortError';
         const errMsg = isTimeout 
-          ? (isFirstInference ? 'Starting FreshGuard Vision service… (Cold start spinup)' : 'Vision is taking longer than expected. Retrying…') 
+          ? 'Vision is taking longer than expected. Retrying…' 
           : `Frame upload failed — ${err.message || err}`;
         showCameraError(errMsg);
         document.getElementById('hud-objs').innerText = latestDetections.length.toString();
