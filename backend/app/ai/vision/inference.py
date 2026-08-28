@@ -145,7 +145,12 @@ def find_v2_onnx_path() -> Optional[str]:
     except Exception:
         selected_version = "v2"
 
-    if selected_version == "v3":
+    if selected_version == "v5":
+        candidates = [
+            os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../../training/v5/deployment/model.onnx")),
+            os.path.abspath(os.path.join(os.getcwd(), "training/v5/deployment/model.onnx")),
+        ]
+    elif selected_version == "v3":
         candidates = [
             os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../../training/vision_models/v3_training/deployment/model.onnx")),
             os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../../vision_models/deployment/grocery_yolov8_v3_web/model.onnx")),
@@ -210,7 +215,7 @@ def _nms_boxes(boxes_xyxy: np.ndarray, scores: np.ndarray, iou_thresh: float) ->
 
 def _run_onnxruntime_v2_inference(image_bytes: bytes, conf_threshold: float = 0.25, iou_threshold: float = 0.45) -> Dict[str, Any]:
     """
-    Executes ONNX Runtime inference using exported 35-class model.onnx artifact.
+    Executes ONNX Runtime inference using active ONNX model artifact (V2, V3, or V5).
     Bypasses PyTorch C++ NumPy binding dependencies cleanly on Linux runtimes.
     """
     onnx_path = find_v2_onnx_path()
@@ -245,27 +250,32 @@ def _run_onnxruntime_v2_inference(image_bytes: bytes, conf_threshold: float = 0.
         img = Image.open(io.BytesIO(image_bytes)).convert('RGB')
         orig_w, orig_h = img.size
 
-        # Resize and normalize image for YOLOv8 (640x640)
-        img_resized = img.resize((640, 640))
+        # Inspect ONNX input tensor resolution dynamically (e.g. 640x640 or 320x320)
+        inp_shape = session.get_inputs()[0].shape
+        in_h = inp_shape[2] if len(inp_shape) >= 4 and isinstance(inp_shape[2], int) else 640
+        in_w = inp_shape[3] if len(inp_shape) >= 4 and isinstance(inp_shape[3], int) else 640
+
+        # Resize and normalize image for YOLOv8
+        img_resized = img.resize((in_w, in_h))
         img_np = np.array(img_resized).astype(np.float32) / 255.0
         img_np = np.transpose(img_np, (2, 0, 1))  # HWC to CHW
-        img_np = np.expand_dims(img_np, axis=0)   # Add batch dimension [1, 3, 640, 640]
+        img_np = np.expand_dims(img_np, axis=0)   # Add batch dimension
 
         input_name = session.get_inputs()[0].name
         outputs = session.run(None, {input_name: img_np})
 
-        # YOLOv8 output shape: [1, 39, 8400] where 39 = 4 (bbox) + 35 (classes)
-        predictions = outputs[0][0]  # shape: [39, 8400]
+        predictions = outputs[0][0]  # shape: [num_attrs, num_anchors]
         
         # Load class names metadata
         class_names = []
         meta_candidates = [
+            os.path.join(os.path.dirname(onnx_path), "v5_classes_metadata.json"),
             os.path.join(os.path.dirname(onnx_path), "v3_classes_metadata.json"),
             os.path.join(os.path.dirname(onnx_path), "classes_metadata.json"),
         ]
         for meta_path in meta_candidates:
             if os.path.exists(meta_path):
-                with open(meta_path, "r") as f:
+                with open(meta_path, "r", encoding="utf-8") as f:
                     meta = json.load(f)
                     class_names = meta.get("classes", [])
                     break
@@ -294,8 +304,8 @@ def _run_onnxruntime_v2_inference(image_bytes: bytes, conf_threshold: float = 0.
             }
 
         # Convert xc,yc,w,h to x1,y1,x2,y2 for NMS
-        scale_x = orig_w / 640.0
-        scale_y = orig_h / 640.0
+        scale_x = orig_w / float(in_w)
+        scale_y = orig_h / float(in_h)
 
         xc = filtered_boxes[0, :]
         yc = filtered_boxes[1, :]
