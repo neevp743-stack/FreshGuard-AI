@@ -722,24 +722,48 @@
     async function captureAndDetectFrame() {
       const tStart = performance.now();
       try {
-        const vidW = videoElem.videoWidth || 640;
-        const vidH = videoElem.videoHeight || 480;
+        const origW = videoElem.videoWidth || 640;
+        const origH = videoElem.videoHeight || 480;
+
+        // Downscale frame to max 640px for fast low-latency network transfer (shrinks payload from 2MB to ~25KB)
+        const maxDim = 640;
+        let targetW = origW;
+        let targetH = origH;
+        if (targetW > maxDim || targetH > maxDim) {
+          if (targetW > targetH) {
+            targetH = Math.round((targetH * maxDim) / targetW);
+            targetW = maxDim;
+          } else {
+            targetW = Math.round((targetW * maxDim) / targetH);
+            targetH = maxDim;
+          }
+        }
 
         const tempCanvas = document.createElement('canvas');
-        tempCanvas.width = vidW;
-        tempCanvas.height = vidH;
+        tempCanvas.width = targetW;
+        tempCanvas.height = targetH;
         const tempCtx = tempCanvas.getContext('2d');
-        tempCtx.drawImage(videoElem, 0, 0, vidW, vidH);
+        tempCtx.drawImage(videoElem, 0, 0, targetW, targetH);
 
-        const dataUrl = tempCanvas.toDataURL('image/jpeg', 0.85);
+        const dataUrl = tempCanvas.toDataURL('image/jpeg', 0.65);
         const confVal = parseFloat(document.getElementById('conf-slider').value);
         const iouVal = parseFloat(document.getElementById('iou-slider').value);
 
-        const res = await fetch(`${API_BASE}/scanner/vision/detect_v2?conf=${confVal}&iou=${iouVal}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ image_base64: dataUrl })
-        });
+        // AbortController timeout guard (8s limit)
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 8000);
+
+        let res;
+        try {
+          res = await fetch(`${API_BASE}/scanner/vision/detect_v2?conf=${confVal}&iou=${iouVal}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ image_base64: dataUrl }),
+            signal: controller.signal
+          });
+        } finally {
+          clearTimeout(timeoutId);
+        }
 
         const tEnd = performance.now();
         const roundTripLatencyMs = Math.round(tEnd - tStart);
@@ -749,8 +773,10 @@
         if (!res.ok) {
           const errText = await res.text();
           showCameraError(`Backend HTTP ${res.status}: ${errText.slice(0, 80)}`);
-          document.getElementById('hud-fps').innerText = '0.0';
+          document.getElementById('hud-objs').innerText = '0';
+          document.getElementById('hud-fps').innerText = fps;
           document.getElementById('hud-lat').innerText = `${roundTripLatencyMs} ms`;
+          renderBoundingBoxes([], origW, origH);
           return;
         }
 
@@ -759,7 +785,7 @@
         if (data.success && Array.isArray(data.detections)) {
           hideCameraError();
           latestDetections = data.detections;
-          renderBoundingBoxes(data.detections, vidW, vidH);
+          renderBoundingBoxes(data.detections, origW, origH);
 
           document.getElementById('hud-objs').innerText = data.count;
           document.getElementById('hud-fps').innerText = fps;
@@ -767,14 +793,18 @@
 
           updateReviewButtonUI(data.detections.length);
         } else {
-          showCameraError(data.message || "Vision inference failed");
+          showCameraError(data.message || "No supported object detected or backend unavailable.");
           document.getElementById('hud-objs').innerText = '0';
           document.getElementById('hud-fps').innerText = fps;
           document.getElementById('hud-lat').innerText = `${roundTripLatencyMs} ms`;
+          renderBoundingBoxes([], origW, origH);
         }
       } catch (err) {
         console.warn("Vision detect error:", err);
-        showCameraError(`Network Error: ${err.message || err}`);
+        const isTimeout = err.name === 'AbortError';
+        const errMsg = isTimeout ? 'Inference request timed out (8s limit)' : `Network Error: ${err.message || err}`;
+        showCameraError(errMsg);
+        document.getElementById('hud-objs').innerText = '0';
         document.getElementById('hud-fps').innerText = '0.0';
       } finally {
         isProcessingFrame = false;

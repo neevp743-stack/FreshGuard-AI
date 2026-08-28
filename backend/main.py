@@ -50,6 +50,16 @@ app.include_router(notifications_router.router, prefix="/api")
 app.include_router(analytics.router, prefix="/api")
 app.include_router(admin.router, prefix="/api")
 
+@app.on_event("startup")
+def preload_vision_onnx_model():
+    try:
+        from app.ai.vision.inference import get_onnx_session
+        session = get_onnx_session()
+        if session:
+            print("[STARTUP] ONNX Runtime Vision Model pre-loaded successfully.")
+    except Exception as e:
+        print(f"[STARTUP WARNING] ONNX Runtime Vision Model pre-load warning: {e}")
+
 @app.get("/")
 def root():
     return {
@@ -59,4 +69,5 @@ def root():
         "health_endpoint": "/health",
         "api_v1_docs": "/docs"
     }
+
 
