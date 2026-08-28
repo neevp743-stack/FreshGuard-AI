@@ -719,13 +719,22 @@
       }
     }
 
-    async function captureAndDetectFrame() {
-      const tStart = performance.now();
-      try {
-        const origW = videoElem.videoWidth || 640;
-        const origH = videoElem.videoHeight || 480;
+    let isInferenceInFlight = false;
 
-        // Downscale frame to max 640px for fast low-latency network transfer (shrinks payload from 2MB to ~25KB)
+    async function captureAndDetectFrame() {
+      if (isInferenceInFlight) return;
+      if (!videoElem || videoElem.readyState < 2 || !videoElem.videoWidth || !videoElem.videoHeight) {
+        return;
+      }
+
+      isInferenceInFlight = true;
+      const tStart = performance.now();
+
+      try {
+        const origW = videoElem.videoWidth;
+        const origH = videoElem.videoHeight;
+
+        // Downscale frame to max 640px for fast low-latency network transfer
         const maxDim = 640;
         let targetW = origW;
         let targetH = origH;
@@ -745,9 +754,28 @@
         const tempCtx = tempCanvas.getContext('2d');
         tempCtx.drawImage(videoElem, 0, 0, targetW, targetH);
 
-        const dataUrl = tempCanvas.toDataURL('image/jpeg', 0.65);
-        const confVal = parseFloat(document.getElementById('conf-slider').value);
-        const iouVal = parseFloat(document.getElementById('iou-slider').value);
+        const confVal = parseFloat(document.getElementById('conf-slider').value) || 0.25;
+        const iouVal = parseFloat(document.getElementById('iou-slider').value) || 0.45;
+
+        let payloadBody;
+        let requestHeaders = {};
+
+        if (tempCanvas.toBlob) {
+          const blob = await new Promise(resolve => tempCanvas.toBlob(resolve, 'image/jpeg', 0.70));
+          if (!blob || blob.size === 0) {
+            throw new Error("Failed to capture camera frame blob");
+          }
+          const formData = new FormData();
+          formData.append('file', blob, 'webcam_frame.jpg');
+          payloadBody = formData;
+        } else {
+          const dataUrl = tempCanvas.toDataURL('image/jpeg', 0.70);
+          if (!dataUrl || dataUrl.length < 100) {
+            throw new Error("Failed to generate base64 frame payload");
+          }
+          payloadBody = JSON.stringify({ image_base64: dataUrl });
+          requestHeaders['Content-Type'] = 'application/json';
+        }
 
         // AbortController timeout guard (8s limit)
         const controller = new AbortController();
@@ -757,8 +785,8 @@
         try {
           res = await fetch(`${API_BASE}/scanner/vision/detect_v2?conf=${confVal}&iou=${iouVal}`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ image_base64: dataUrl }),
+            headers: requestHeaders,
+            body: payloadBody,
             signal: controller.signal
           });
         } finally {
@@ -772,7 +800,7 @@
 
         if (!res.ok) {
           const errText = await res.text();
-          showCameraError(`Backend HTTP ${res.status}: ${errText.slice(0, 80)}`);
+          showCameraError(`Frame upload failed — HTTP ${res.status}: ${errText.slice(0, 80)}`);
           document.getElementById('hud-objs').innerText = '0';
           document.getElementById('hud-fps').innerText = fps;
           document.getElementById('hud-lat').innerText = `${roundTripLatencyMs} ms`;
@@ -802,12 +830,13 @@
       } catch (err) {
         console.warn("Vision detect error:", err);
         const isTimeout = err.name === 'AbortError';
-        const errMsg = isTimeout ? 'Inference request timed out (8s limit)' : `Network Error: ${err.message || err}`;
+        const errMsg = isTimeout ? 'Inference request timed out (8s limit)' : `Frame upload failed — ${err.message || err}`;
         showCameraError(errMsg);
         document.getElementById('hud-objs').innerText = '0';
         document.getElementById('hud-fps').innerText = '0.0';
       } finally {
         isProcessingFrame = false;
+        isInferenceInFlight = false;
       }
     }
 
