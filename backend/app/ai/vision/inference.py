@@ -44,10 +44,10 @@ def get_vision_model_status() -> VisionStatusResponse:
         return VisionStatusResponse(
             lifecycle_state="READY" if model_available else "NOT_TRAINED",
             model_available=model_available,
-            model_version="5.0.0 (Candidate)",
+            model_version="5.0.0 (Production)",
             classes_count=644,
             confidence_threshold=getattr(settings, "VISION_CONFIDENCE_THRESHOLD", 0.25),
-            message=f"FreshGuard Vision V5 (644-class candidate) active from: {os.path.basename(onnx_path or '')}"
+            message=f"FreshGuard Vision V5 (644-class production model) active from: {os.path.basename(onnx_path or '')}"
         )
 
     lifecycle_state = "NOT_TRAINED"

@@ -255,29 +255,41 @@ def test_unauthorized_device_token_registration():
 # ==================== NEW PHASE 3 VISION AI & MULTIMODAL TESTS ====================
 
 def test_vision_status_endpoint():
-    res = client.get("/api/scanner/vision/status")
-    assert res.status_code == 200
-    data = res.json()
-    assert "lifecycle_state" in data
-    assert data["lifecycle_state"] == "NOT_TRAINED"
-    assert data["model_available"] is False
-    assert data["classes_count"] == 15
-    assert data["confidence_threshold"] == 0.50
+    from app.core.config import settings
+    orig = settings.FRESHGUARD_VISION_MODEL
+    settings.FRESHGUARD_VISION_MODEL = "v1"
+    try:
+        res = client.get("/api/scanner/vision/status")
+        assert res.status_code == 200
+        data = res.json()
+        assert "lifecycle_state" in data
+        assert data["lifecycle_state"] == "NOT_TRAINED"
+        assert data["model_available"] is False
+        assert data["classes_count"] == 15
+        assert data["confidence_threshold"] == 0.50
+    finally:
+        settings.FRESHGUARD_VISION_MODEL = orig
 
 def test_vision_detect_no_model_graceful():
-    buf = io.BytesIO()
-    img = Image.new('RGB', (200, 200), color=(255, 255, 255))
-    img.save(buf, format='JPEG')
-    buf.seek(0)
+    from app.core.config import settings
+    orig = settings.FRESHGUARD_VISION_MODEL
+    settings.FRESHGUARD_VISION_MODEL = "v1"
+    try:
+        buf = io.BytesIO()
+        img = Image.new('RGB', (200, 200), color=(255, 255, 255))
+        img.save(buf, format='JPEG')
+        buf.seek(0)
 
-    files = {"file": ("fridge_test.jpg", buf, "image/jpeg")}
-    res = client.post("/api/scanner/vision/detect", files=files)
-    assert res.status_code == 200
-    data = res.json()
-    assert data["success"] is False
-    assert data["lifecycle_state"] == "NOT_TRAINED"
-    assert data["detections"] == []
-    assert "pending the real grocery dataset" in data["message"]
+        files = {"file": ("fridge_test.jpg", buf, "image/jpeg")}
+        res = client.post("/api/scanner/vision/detect", files=files)
+        assert res.status_code == 200
+        data = res.json()
+        assert data["success"] is False
+        assert data["lifecycle_state"] == "NOT_TRAINED"
+        assert data["detections"] == []
+        assert "pending the real grocery dataset" in data["message"]
+    finally:
+        settings.FRESHGUARD_VISION_MODEL = orig
 
 def test_vision_feedback_privacy_first():
     reg = client.post("/api/auth/register", json={"email": "visionfb@freshguard.ai", "password": "pass"})
