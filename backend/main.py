@@ -23,6 +23,18 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.on_event("startup")
+def warmup_vision_model_on_startup():
+    """
+    Pre-warms and caches ONNX Runtime session during container boot.
+    Prevents client-side timeouts during first inference request.
+    """
+    try:
+        from app.ai.vision.inference import get_onnx_session
+        get_onnx_session()
+    except Exception as e:
+        pass
+
 # Include Lightweight Health Router (/health and /api/v1/health)
 app.include_router(health.router)
 

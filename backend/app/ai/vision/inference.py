@@ -267,6 +267,7 @@ def _run_onnxruntime_v2_inference(image_bytes: bytes, conf_threshold: float = 0.
 
         img = Image.open(io.BytesIO(image_bytes)).convert('RGB')
         orig_w, orig_h = img.size
+        logger.info(f"Vision inference request: payload={len(image_bytes)} bytes, resolution={orig_w}x{orig_h}")
 
         # Inspect ONNX input tensor resolution dynamically (e.g. 640x640 or 320x320)
         inp_shape = session.get_inputs()[0].shape

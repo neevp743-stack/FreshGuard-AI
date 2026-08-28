@@ -720,6 +720,7 @@
     }
 
     let isInferenceInFlight = false;
+    let isFirstInference = true;
 
     async function captureAndDetectFrame() {
       if (isInferenceInFlight) return;
@@ -777,9 +778,10 @@
           requestHeaders['Content-Type'] = 'application/json';
         }
 
-        // AbortController timeout guard (8s limit)
+        // Adaptive timeout guard: 25s for initial cold start on Render, 10s for warm inference
+        const timeoutMs = isFirstInference ? 25000 : 10000;
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 8000);
+        const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
         let res;
         try {
@@ -789,6 +791,7 @@
             body: payloadBody,
             signal: controller.signal
           });
+          isFirstInference = false;
         } finally {
           clearTimeout(timeoutId);
         }
@@ -801,10 +804,9 @@
         if (!res.ok) {
           const errText = await res.text();
           showCameraError(`Frame upload failed — HTTP ${res.status}: ${errText.slice(0, 80)}`);
-          document.getElementById('hud-objs').innerText = '0';
+          document.getElementById('hud-objs').innerText = latestDetections.length.toString();
           document.getElementById('hud-fps').innerText = fps;
           document.getElementById('hud-lat').innerText = `${roundTripLatencyMs} ms`;
-          renderBoundingBoxes([], origW, origH);
           return;
         }
 
@@ -830,9 +832,11 @@
       } catch (err) {
         console.warn("Vision detect error:", err);
         const isTimeout = err.name === 'AbortError';
-        const errMsg = isTimeout ? 'Inference request timed out (8s limit)' : `Frame upload failed — ${err.message || err}`;
+        const errMsg = isTimeout 
+          ? (isFirstInference ? 'Starting FreshGuard Vision service… (Cold start spinup)' : 'Vision is taking longer than expected. Retrying…') 
+          : `Frame upload failed — ${err.message || err}`;
         showCameraError(errMsg);
-        document.getElementById('hud-objs').innerText = '0';
+        document.getElementById('hud-objs').innerText = latestDetections.length.toString();
         document.getElementById('hud-fps').innerText = '0.0';
       } finally {
         isProcessingFrame = false;
