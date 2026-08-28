@@ -26,6 +26,7 @@ datasets/Grocer-Help*
 training/v5/datasets/freshguard_v5_grocery/images/
 training/v5/datasets/freshguard_v5_grocery/labels/
 training/v5/models/
+training/v5/validation/V5_VALIDATION_GALLERY/
 runs/
 training/vision_models/v3_training/run_v3/
 
