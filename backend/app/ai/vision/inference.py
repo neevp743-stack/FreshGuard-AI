@@ -32,6 +32,24 @@ def get_vision_model_status() -> VisionStatusResponse:
     Returns active vision model lifecycle state and configuration status.
     Lifecycle states: NOT_TRAINED, TRAINING, READY, FAILED, DEPRECATED.
     """
+    try:
+        from app.core.config import settings
+        selected_version = getattr(settings, "FRESHGUARD_VISION_MODEL", "v2").lower()
+    except Exception:
+        selected_version = "v2"
+
+    if selected_version == "v5":
+        onnx_path = find_v2_onnx_path()
+        model_available = onnx_path is not None and os.path.exists(onnx_path)
+        return VisionStatusResponse(
+            lifecycle_state="READY" if model_available else "NOT_TRAINED",
+            model_available=model_available,
+            model_version="5.0.0 (Candidate)",
+            classes_count=644,
+            confidence_threshold=getattr(settings, "VISION_CONFIDENCE_THRESHOLD", 0.25),
+            message=f"FreshGuard Vision V5 (644-class candidate) active from: {os.path.basename(onnx_path or '')}"
+        )
+
     lifecycle_state = "NOT_TRAINED"
     classes_count = 15
     model_version = "0.1.0"
