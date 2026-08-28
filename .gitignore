@@ -19,6 +19,8 @@ datasets/real_world_test/
 training/datasets/archive/
 training/datasets/freshguard_indian_grocery/images/
 training/datasets/freshguard_indian_grocery/labels/
+runs/
+training/vision_models/v3_training/run_v3/
 
 # Trained Model Binaries (Include V2 experimental model weights & ONNX export for Render deployment)
 *.pt
