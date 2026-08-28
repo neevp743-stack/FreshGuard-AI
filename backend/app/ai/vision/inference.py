@@ -133,18 +133,41 @@ def run_vision_inference(image_bytes: bytes) -> VisionDetectResponse:
 
 
 V2_WEIGHTS_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../../vision_models/experiments/grocery_yolov8_v2/weights/best.pt"))
-V2_ONNX_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../../vision_models/deployment/grocery_yolov8_v2_web/model.onnx"))
 
 FRESHGUARD_VISION_DISPLAY_NAME = "FreshGuard Vision"
 _ONNX_SESSION_CACHE = None
+_LAST_ONNX_ERROR = None
+
+def find_v2_onnx_path() -> Optional[str]:
+    candidates = [
+        os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../../vision_models/deployment/grocery_yolov8_v2_web/model.onnx")),
+        os.path.abspath(os.path.join(os.getcwd(), "vision_models/deployment/grocery_yolov8_v2_web/model.onnx")),
+        os.path.abspath(os.path.join(os.getcwd(), "../vision_models/deployment/grocery_yolov8_v2_web/model.onnx")),
+        os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../../../vision_models/deployment/grocery_yolov8_v2_web/model.onnx")),
+    ]
+    for cand in candidates:
+        if os.path.exists(cand):
+            return cand
+    return None
 
 def get_onnx_session():
-    global _ONNX_SESSION_CACHE
-    if _ONNX_SESSION_CACHE is None and os.path.exists(V2_ONNX_PATH):
-        import onnxruntime as ort
-        logger.info(f"Initializing ONNX Runtime session with CPUExecutionProvider from: {V2_ONNX_PATH}")
-        _ONNX_SESSION_CACHE = ort.InferenceSession(V2_ONNX_PATH, providers=['CPUExecutionProvider'])
+    global _ONNX_SESSION_CACHE, _LAST_ONNX_ERROR
+    if _ONNX_SESSION_CACHE is None:
+        onnx_path = find_v2_onnx_path()
+        if not onnx_path:
+            _LAST_ONNX_ERROR = "model.onnx file not found in any candidate path"
+            return None
+        try:
+            import onnxruntime as ort
+            logger.info(f"Initializing ONNX Runtime session with CPUExecutionProvider from: {onnx_path}")
+            _ONNX_SESSION_CACHE = ort.InferenceSession(onnx_path, providers=['CPUExecutionProvider'])
+            _LAST_ONNX_ERROR = None
+        except Exception as e:
+            _LAST_ONNX_ERROR = f"Failed to load ONNX session: {e}"
+            logger.error(_LAST_ONNX_ERROR)
+            _ONNX_SESSION_CACHE = None
     return _ONNX_SESSION_CACHE
+
 
 def _nms_boxes(boxes_xyxy: np.ndarray, scores: np.ndarray, iou_thresh: float) -> List[int]:
     if len(boxes_xyxy) == 0:
@@ -176,14 +199,15 @@ def _run_onnxruntime_v2_inference(image_bytes: bytes, conf_threshold: float = 0.
     Executes ONNX Runtime inference using exported 35-class model.onnx artifact.
     Bypasses PyTorch C++ NumPy binding dependencies cleanly on Linux runtimes.
     """
-    if not os.path.exists(V2_ONNX_PATH):
+    onnx_path = find_v2_onnx_path()
+    if not onnx_path:
         return {
             "success": False,
             "model": "grocery_yolov8_v2",
             "detections": [],
             "count": 0,
             "inference_ms": 0.0,
-            "message": f"ONNX Runtime V2 error: File not found at '{V2_ONNX_PATH}'"
+            "message": f"ONNX Runtime V2 error: File model.onnx not found in candidate paths."
         }
 
     try:
@@ -201,7 +225,7 @@ def _run_onnxruntime_v2_inference(image_bytes: bytes, conf_threshold: float = 0.
                 "detections": [],
                 "count": 0,
                 "inference_ms": 0.0,
-                "message": "ONNX Runtime session initialization failed."
+                "message": f"ONNX Runtime session initialization failed: {_LAST_ONNX_ERROR or 'Unknown session error'}"
             }
 
         img = Image.open(io.BytesIO(image_bytes)).convert('RGB')
@@ -221,7 +245,7 @@ def _run_onnxruntime_v2_inference(image_bytes: bytes, conf_threshold: float = 0.
         
         # Load 35 class names metadata
         class_names = []
-        meta_path = os.path.join(os.path.dirname(V2_ONNX_PATH), "classes_metadata.json")
+        meta_path = os.path.join(os.path.dirname(onnx_path), "classes_metadata.json")
         if os.path.exists(meta_path):
             with open(meta_path, "r") as f:
                 meta = json.load(f)
@@ -243,10 +267,11 @@ def _run_onnxruntime_v2_inference(image_bytes: bytes, conf_threshold: float = 0.
             return {
                 "success": True,
                 "model": "grocery_yolov8_v2",
+                "model_display_name": FRESHGUARD_VISION_DISPLAY_NAME,
                 "detections": [],
                 "count": 0,
                 "inference_ms": round((t_end - t_start) * 1000, 1),
-                "message": "Real V2 ONNX detection complete. Found 0 object(s)."
+                "message": f"Real {FRESHGUARD_VISION_DISPLAY_NAME} ONNX detection complete. Found 0 object(s)."
             }
 
         # Convert xc,yc,w,h to x1,y1,x2,y2 for NMS
@@ -313,11 +338,14 @@ def run_experimental_v2_inference(image_bytes: bytes, conf_threshold: float = 0.
     if onnx_res and onnx_res.get("success"):
         return onnx_res
 
+    onnx_msg = onnx_res.get("message", "Unknown ONNX error") if onnx_res else str(_LAST_ONNX_ERROR)
+
     # 2. PyTorch PyPI fallback
     candidates = [
         V2_WEIGHTS_PATH,
         os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../../vision_models/experiments/grocery_yolov8_v2/results/run_v2/weights/best.pt")),
         os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../../vision_models/deployment/grocery_yolov8_v2_web/model.pt")),
+        os.path.abspath(os.path.join(os.getcwd(), "vision_models/deployment/grocery_yolov8_v2_web/model.pt")),
     ]
 
     weights_path = None
@@ -333,7 +361,7 @@ def run_experimental_v2_inference(image_bytes: bytes, conf_threshold: float = 0.
             "detections": [],
             "count": 0,
             "inference_ms": 0.0,
-            "message": f"Vision inference unavailable: V2 model weights not found in candidates {[os.path.basename(c) for c in candidates]}."
+            "message": f"Vision inference unavailable: V2 model weights not found in candidates {[os.path.basename(c) for c in candidates]} | ONNX: {onnx_msg}"
         }
 
     tmp_path = None
@@ -371,6 +399,7 @@ def run_experimental_v2_inference(image_bytes: bytes, conf_threshold: float = 0.
         return {
             "success": True,
             "model": "grocery_yolov8_v2",
+            "model_display_name": FRESHGUARD_VISION_DISPLAY_NAME,
             "detections": detections,
             "count": len(detections),
             "inference_ms": inference_ms,
@@ -386,7 +415,7 @@ def run_experimental_v2_inference(image_bytes: bytes, conf_threshold: float = 0.
             "detections": [],
             "count": 0,
             "inference_ms": 0.0,
-            "message": f"Vision inference error [{type(ex).__name__}]: {ex} | ONNX err: {_LAST_ONNX_ERROR}"
+            "message": f"Vision inference error [{type(ex).__name__}]: {ex} | ONNX: {onnx_msg}"
         }
     finally:
         if tmp_path and os.path.exists(tmp_path):
@@ -394,3 +423,4 @@ def run_experimental_v2_inference(image_bytes: bytes, conf_threshold: float = 0.
                 os.remove(tmp_path)
             except Exception:
                 pass
+

@@ -264,9 +264,10 @@
                 <h2 style="font-size: 20px; font-weight: 800;">Scan Your Groceries</h2>
                 <p style="font-size: 13px; color: var(--text-sub);">Show your items to FreshGuard Vision (35-Class AI Object Detector).</p>
               </div>
-              <div style="display: flex; gap: 10px;">
+              <div style="display: flex; gap: 10px; flex-wrap: wrap;">
                 <button class="btn btn-emerald" id="scan-start-btn" onclick="startCamera()"><i class="fa-solid fa-play"></i> START CAMERA</button>
                 <button class="btn btn-danger" id="scan-stop-btn" onclick="stopCamera()" disabled><i class="fa-solid fa-stop"></i> STOP CAMERA</button>
+                <button class="btn btn-emerald" id="scan-review-btn" onclick="reviewLatestDetections()" style="display: none;"><i class="fa-solid fa-check-double"></i> REVIEW & CONFIRM (<span id="scan-review-count">0</span>)</button>
                 <label class="btn btn-secondary" style="cursor: pointer;">
                   <i class="fa-solid fa-upload"></i> UPLOAD IMAGE
                   <input type="file" id="scan-file-input" accept="image/*" style="display: none;" onchange="handleImageUpload(event)">
@@ -281,7 +282,7 @@
               <input type="range" id="iou-slider" min="0.10" max="0.90" step="0.05" value="0.45" oninput="document.getElementById('iou-val-txt').innerText = this.value">
             </div>
 
-            <div class="scan-viewport-container">
+            <div class="scan-viewport-container" style="position: relative;">
               <video id="scan-video" autoplay playsinline muted></video>
               <canvas id="scan-canvas"></canvas>
 
@@ -289,6 +290,10 @@
                 <div>Objects: <span id="hud-objs">0</span></div>
                 <div>FPS: <span id="hud-fps">0.0</span></div>
                 <div>Latency: <span id="hud-lat">0 ms</span></div>
+              </div>
+
+              <div id="scan-error-banner" style="display: none; position: absolute; bottom: 12px; left: 12px; right: 12px; background: rgba(225, 29, 72, 0.9); color: #fff; padding: 8px 14px; border-radius: 8px; font-size: 12px; font-weight: 600; text-align: center; z-index: 20; box-shadow: 0 4px 12px rgba(0,0,0,0.3);">
+                <i class="fa-solid fa-circle-exclamation"></i> <span id="scan-error-text">Detection Error</span>
               </div>
             </div>
           </div>
@@ -633,15 +638,56 @@
     }
 
     /* Camera & Vision Scan */
+    let lastInferenceTime = 0;
+    let minInferenceIntervalMs = 250;
+    let latestDetections = [];
+
+    function showCameraError(msg) {
+      const banner = document.getElementById('scan-error-banner');
+      const txt = document.getElementById('scan-error-text');
+      if (banner && txt) {
+        txt.innerText = msg;
+        banner.style.display = 'block';
+      }
+    }
+
+    function hideCameraError() {
+      const banner = document.getElementById('scan-error-banner');
+      if (banner) banner.style.display = 'none';
+    }
+
+    function updateReviewButtonUI(count) {
+      const btn = document.getElementById('scan-review-btn');
+      const countSpan = document.getElementById('scan-review-count');
+      if (btn && countSpan) {
+        if (count > 0) {
+          btn.style.display = 'inline-flex';
+          countSpan.innerText = count;
+        }
+      }
+    }
+
+    function reviewLatestDetections() {
+      if (latestDetections && latestDetections.length > 0) {
+        openReviewConfirmationModal(latestDetections);
+      } else {
+        alert("No active detections visible to review.");
+      }
+    }
+
     async function startCamera() {
       try {
         activeStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } } });
         videoElem.srcObject = activeStream;
+        await videoElem.play().catch(e => console.warn("Video play warning:", e));
         document.getElementById('scan-start-btn').disabled = true;
         document.getElementById('scan-stop-btn').disabled = false;
+        hideCameraError();
+        lastFrameTime = performance.now();
+        lastInferenceTime = 0;
         requestAnimationFrame(processScanLoop);
       } catch (err) {
-        alert("Camera access denied or device unavailable.");
+        showCameraError("Camera access denied or device unavailable: " + (err.message || err));
       }
     }
 
@@ -653,24 +699,37 @@
       videoElem.srcObject = null;
       document.getElementById('scan-start-btn').disabled = false;
       document.getElementById('scan-stop-btn').disabled = true;
+      ctx.clearRect(0, 0, canvasElem.width, canvasElem.height);
     }
 
     async function processScanLoop() {
       if (!activeStream) return;
-      if (!isProcessingFrame && videoElem.readyState === 4) {
+
+      const now = performance.now();
+      const isVideoReady = videoElem.readyState >= 2 && videoElem.videoWidth > 0 && videoElem.videoHeight > 0;
+
+      if (!isProcessingFrame && isVideoReady && (now - lastInferenceTime >= minInferenceIntervalMs)) {
         isProcessingFrame = true;
+        lastInferenceTime = now;
         await captureAndDetectFrame();
       }
-      requestAnimationFrame(processScanLoop);
+
+      if (activeStream) {
+        requestAnimationFrame(processScanLoop);
+      }
     }
 
     async function captureAndDetectFrame() {
+      const tStart = performance.now();
       try {
+        const vidW = videoElem.videoWidth || 640;
+        const vidH = videoElem.videoHeight || 480;
+
         const tempCanvas = document.createElement('canvas');
-        tempCanvas.width = videoElem.videoWidth || 640;
-        tempCanvas.height = videoElem.videoHeight || 480;
+        tempCanvas.width = vidW;
+        tempCanvas.height = vidH;
         const tempCtx = tempCanvas.getContext('2d');
-        tempCtx.drawImage(videoElem, 0, 0, tempCanvas.width, tempCanvas.height);
+        tempCtx.drawImage(videoElem, 0, 0, vidW, vidH);
 
         const dataUrl = tempCanvas.toDataURL('image/jpeg', 0.85);
         const confVal = parseFloat(document.getElementById('conf-slider').value);
@@ -682,32 +741,53 @@
           body: JSON.stringify({ image_base64: dataUrl })
         });
 
+        const tEnd = performance.now();
+        const roundTripLatencyMs = Math.round(tEnd - tStart);
+        const fps = (1000 / Math.max(tEnd - lastFrameTime, 1)).toFixed(1);
+        lastFrameTime = tEnd;
+
+        if (!res.ok) {
+          const errText = await res.text();
+          showCameraError(`Backend HTTP ${res.status}: ${errText.slice(0, 80)}`);
+          document.getElementById('hud-fps').innerText = '0.0';
+          document.getElementById('hud-lat').innerText = `${roundTripLatencyMs} ms`;
+          return;
+        }
+
         const data = await res.json();
-        const t1 = performance.now();
-        const fps = (1000 / Math.max(t1 - lastFrameTime, 1)).toFixed(1);
-        lastFrameTime = t1;
 
         if (data.success && Array.isArray(data.detections)) {
-          renderBoundingBoxes(data.detections, tempCanvas.width, tempCanvas.height);
+          hideCameraError();
+          latestDetections = data.detections;
+          renderBoundingBoxes(data.detections, vidW, vidH);
+
           document.getElementById('hud-objs').innerText = data.count;
           document.getElementById('hud-fps').innerText = fps;
-          document.getElementById('hud-lat').innerText = `${data.inference_ms} ms`;
+          document.getElementById('hud-lat').innerText = `${data.inference_ms || roundTripLatencyMs} ms`;
 
-          if (data.detections.length > 0 && !document.getElementById('confirm-modal').classList.contains('open')) {
-            openReviewConfirmationModal(data.detections);
-          }
+          updateReviewButtonUI(data.detections.length);
+        } else {
+          showCameraError(data.message || "Vision inference failed");
+          document.getElementById('hud-objs').innerText = '0';
+          document.getElementById('hud-fps').innerText = fps;
+          document.getElementById('hud-lat').innerText = `${roundTripLatencyMs} ms`;
         }
       } catch (err) {
         console.warn("Vision detect error:", err);
+        showCameraError(`Network Error: ${err.message || err}`);
+        document.getElementById('hud-fps').innerText = '0.0';
       } finally {
         isProcessingFrame = false;
       }
     }
 
     function renderBoundingBoxes(detections, vidW, vidH) {
-      canvasElem.width = videoElem.clientWidth || vidW;
-      canvasElem.height = videoElem.clientHeight || vidH;
+      const rect = videoElem.getBoundingClientRect();
+      canvasElem.width = rect.width || videoElem.clientWidth || vidW;
+      canvasElem.height = rect.height || videoElem.clientHeight || vidH;
       ctx.clearRect(0, 0, canvasElem.width, canvasElem.height);
+
+      if (!detections || detections.length === 0) return;
 
       const scaleX = canvasElem.width / vidW;
       const scaleY = canvasElem.height / vidH;
@@ -716,17 +796,87 @@
         const [x1, y1, x2, y2] = det.bbox;
         const sx1 = x1 * scaleX;
         const sy1 = y1 * scaleY;
-        const sw = (x2 - x1) * scaleX;
-        const sh = (y2 - y1) * scaleY;
+        const sw = Math.max(2, (x2 - x1) * scaleX);
+        const sh = Math.max(2, (y2 - y1) * scaleY);
 
         ctx.strokeStyle = '#10b981';
         ctx.lineWidth = 3;
         ctx.strokeRect(sx1, sy1, sw, sh);
 
-        ctx.fillStyle = '#10b981';
+        ctx.fillStyle = 'rgba(16, 185, 129, 0.15)';
+        ctx.fillRect(sx1, sy1, sw, sh);
+
+        const labelText = `${det.class_name} ${(det.confidence * 100).toFixed(0)}%`;
         ctx.font = 'bold 12px Inter, sans-serif';
-        ctx.fillText(`${det.class_name} ${(det.confidence * 100).toFixed(0)}%`, sx1 + 4, sy1 > 18 ? sy1 - 6 : sy1 + 14);
+        const textMetrics = ctx.measureText(labelText);
+        const textWidth = textMetrics.width;
+        const pillHeight = 20;
+        const pillY = sy1 > pillHeight + 4 ? sy1 - pillHeight - 2 : sy1 + 2;
+
+        ctx.fillStyle = '#10b981';
+        ctx.fillRect(sx1, pillY, textWidth + 10, pillHeight);
+
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText(labelText, sx1 + 5, pillY + 14);
       });
+    }
+
+    async function handleImageUpload(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = async function(e) {
+        const img = new Image();
+        img.onload = async function() {
+          stopCamera();
+          hideCameraError();
+
+          canvasElem.width = videoElem.clientWidth || img.width;
+          canvasElem.height = videoElem.clientHeight || img.height;
+          ctx.drawImage(img, 0, 0, canvasElem.width, canvasElem.height);
+
+          const tStart = performance.now();
+          const confVal = parseFloat(document.getElementById('conf-slider').value);
+          const iouVal = parseFloat(document.getElementById('iou-slider').value);
+
+          try {
+            const res = await fetch(`${API_BASE}/scanner/vision/detect_v2?conf=${confVal}&iou=${iouVal}`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ image_base64: e.target.result })
+            });
+
+            const tEnd = performance.now();
+            const lat = Math.round(tEnd - tStart);
+
+            if (!res.ok) {
+              showCameraError(`HTTP ${res.status} error on image upload.`);
+              return;
+            }
+
+            const data = await res.json();
+            if (data.success && Array.isArray(data.detections)) {
+              latestDetections = data.detections;
+              renderBoundingBoxes(data.detections, img.width, img.height);
+              document.getElementById('hud-objs').innerText = data.count;
+              document.getElementById('hud-fps').innerText = '1.0';
+              document.getElementById('hud-lat').innerText = `${data.inference_ms || lat} ms`;
+              updateReviewButtonUI(data.detections.length);
+
+              if (data.detections.length > 0) {
+                openReviewConfirmationModal(data.detections);
+              }
+            } else {
+              showCameraError(data.message || "Upload detection failed.");
+            }
+          } catch (err) {
+            showCameraError("Upload network error: " + err.message);
+          }
+        };
+        img.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
     }
 
     function openReviewConfirmationModal(detections) {
