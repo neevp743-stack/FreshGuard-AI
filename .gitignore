@@ -21,6 +21,8 @@ training/datasets/freshguard_indian_grocery/images/
 training/datasets/freshguard_indian_grocery/labels/
 training/datasets/freshguard_v4_candidates/images/
 training/datasets/freshguard_v4_candidates/labels/
+training/datasets/grocery_4gb_inspection/Grocer-Help/
+datasets/Grocer-Help*
 runs/
 training/vision_models/v3_training/run_v3/
 
