@@ -639,16 +639,27 @@
 
     /* Camera & Vision Scan */
     let lastInferenceTime = 0;
-    let minInferenceIntervalMs = 250;
+    let minInferenceIntervalMs = 1500;
     let latestDetections = [];
 
-    function showCameraError(msg) {
+    function showCameraStatus(msg, type = 'error') {
       const banner = document.getElementById('scan-error-banner');
       const txt = document.getElementById('scan-error-text');
       if (banner && txt) {
         txt.innerText = msg;
         banner.style.display = 'block';
+        if (type === 'waking' || type === 'analyzing') {
+          banner.style.background = 'rgba(14, 165, 233, 0.9)';
+        } else if (type === 'ready' || type === 'success') {
+          banner.style.background = 'rgba(16, 185, 129, 0.9)';
+        } else {
+          banner.style.background = 'rgba(225, 29, 72, 0.9)';
+        }
       }
+    }
+
+    function showCameraError(msg) {
+      showCameraStatus(msg, 'error');
     }
 
     function hideCameraError() {
@@ -702,16 +713,20 @@
       ctx.clearRect(0, 0, canvasElem.width, canvasElem.height);
     }
 
-    async function processScanLoop() {
+    function processScanLoop() {
       if (!activeStream) return;
 
       const now = performance.now();
       const isVideoReady = videoElem.readyState >= 2 && videoElem.videoWidth > 0 && videoElem.videoHeight > 0;
 
+      if (isVideoReady && latestDetections && latestDetections.length > 0) {
+        renderBoundingBoxes(latestDetections, videoElem.videoWidth, videoElem.videoHeight);
+      }
+
       if (!isProcessingFrame && isVideoReady && (now - lastInferenceTime >= minInferenceIntervalMs)) {
         isProcessingFrame = true;
         lastInferenceTime = now;
-        await captureAndDetectFrame();
+        captureAndDetectFrame();
       }
 
       if (activeStream) {
@@ -732,24 +747,25 @@
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 25000);
 
-        showCameraError("Waking up FreshGuard Vision…");
+        showCameraStatus("🟡 Waking Vision — Starting FreshGuard Vision service…", "waking");
 
         const res = await fetch(`${API_BASE}/health`, { signal: controller.signal });
         clearTimeout(timeoutId);
 
         if (res.ok) {
           isBackendWarmed = true;
-          hideCameraError();
+          showCameraStatus("🟢 Vision Ready — Scanning every 1–2s", "ready");
+          setTimeout(() => hideCameraError(), 2000);
           return true;
         } else {
-          showCameraError(`FreshGuard Vision unavailable — HTTP ${res.status}`);
+          showCameraError(`🔴 Backend Unavailable — HTTP ${res.status}`);
           return false;
         }
       } catch (err) {
         console.warn("Backend warmup error:", err);
         const isTimeout = err.name === 'AbortError';
-        const errMsg = isTimeout ? "Waking up FreshGuard Vision…" : `Backend unreachable — ${err.message || err}`;
-        showCameraError(errMsg);
+        const errMsg = isTimeout ? "🟡 Waking Vision — Starting FreshGuard Vision service…" : `🔴 Backend Unavailable — ${err.message || err}`;
+        showCameraStatus(errMsg, isTimeout ? "waking" : "error");
         return false;
       } finally {
         isWarmingUpInFlight = false;
@@ -759,12 +775,16 @@
     async function captureAndDetectFrame() {
       if (isInferenceInFlight) return;
       if (!videoElem || videoElem.readyState < 2 || !videoElem.videoWidth || !videoElem.videoHeight) {
+        isProcessingFrame = false;
         return;
       }
 
       if (!isBackendWarmed) {
         const ready = await ensureBackendWarm();
-        if (!ready) return;
+        if (!ready) {
+          isProcessingFrame = false;
+          return;
+        }
       }
 
       isInferenceInFlight = true;
@@ -840,7 +860,7 @@
 
         if (!res.ok) {
           const errText = await res.text();
-          showCameraError(`Frame upload failed — HTTP ${res.status}: ${errText.slice(0, 80)}`);
+          showCameraError(`🔴 Frame upload failed — HTTP ${res.status}: ${errText.slice(0, 80)}`);
           document.getElementById('hud-objs').innerText = latestDetections.length.toString();
           document.getElementById('hud-fps').innerText = fps;
           document.getElementById('hud-lat').innerText = `${roundTripLatencyMs} ms`;
@@ -850,7 +870,6 @@
         const data = await res.json();
 
         if (data.success && Array.isArray(data.detections)) {
-          hideCameraError();
           latestDetections = data.detections;
           renderBoundingBoxes(data.detections, origW, origH);
 
@@ -858,10 +877,15 @@
           document.getElementById('hud-fps').innerText = fps;
           document.getElementById('hud-lat').innerText = `${data.inference_ms || roundTripLatencyMs} ms`;
 
+          if (data.count > 0) {
+            showCameraStatus(`🟢 ${data.count} item(s) detected • ${(roundTripLatencyMs / 1000).toFixed(1)}s`, "success");
+            setTimeout(() => hideCameraError(), 2500);
+          }
+
           updateReviewButtonUI(data.detections.length);
         } else {
           showCameraError(data.message || "No supported object detected or backend unavailable.");
-          document.getElementById('hud-objs').innerText = '0';
+          document.getElementById('hud-objs').innerText = latestDetections.length.toString();
           document.getElementById('hud-fps').innerText = fps;
           document.getElementById('hud-lat').innerText = `${roundTripLatencyMs} ms`;
           renderBoundingBoxes([], origW, origH);
@@ -870,9 +894,9 @@
         console.warn("Vision detect error:", err);
         const isTimeout = err.name === 'AbortError';
         const errMsg = isTimeout 
-          ? 'Vision is taking longer than expected. Retrying…' 
-          : `Frame upload failed — ${err.message || err}`;
-        showCameraError(errMsg);
+          ? '🔵 Analyzing — Vision taking longer than expected. Retrying…' 
+          : `🔴 Frame upload failed — ${err.message || err}`;
+        showCameraStatus(errMsg, isTimeout ? 'analyzing' : 'error');
         document.getElementById('hud-objs').innerText = latestDetections.length.toString();
         document.getElementById('hud-fps').innerText = '0.0';
       } finally {

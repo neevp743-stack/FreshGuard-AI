@@ -265,9 +265,10 @@ def _run_onnxruntime_v2_inference(image_bytes: bytes, conf_threshold: float = 0.
                 "message": f"ONNX Runtime session initialization failed: {_LAST_ONNX_ERROR or 'Unknown session error'}"
             }
 
+        t_decode_start = time.perf_counter()
         img = Image.open(io.BytesIO(image_bytes)).convert('RGB')
         orig_w, orig_h = img.size
-        logger.info(f"Vision inference request: payload={len(image_bytes)} bytes, resolution={orig_w}x{orig_h}")
+        t_decode_end = time.perf_counter()
 
         # Inspect ONNX input tensor resolution dynamically (e.g. 640x640 or 320x320)
         inp_shape = session.get_inputs()[0].shape
@@ -275,14 +276,19 @@ def _run_onnxruntime_v2_inference(image_bytes: bytes, conf_threshold: float = 0.
         in_w = inp_shape[3] if len(inp_shape) >= 4 and isinstance(inp_shape[3], int) else 640
 
         # Resize and normalize image for YOLOv8
+        t_prep_start = time.perf_counter()
         img_resized = img.resize((in_w, in_h))
         img_np = np.array(img_resized).astype(np.float32) / 255.0
         img_np = np.transpose(img_np, (2, 0, 1))  # HWC to CHW
         img_np = np.expand_dims(img_np, axis=0)   # Add batch dimension
+        t_prep_end = time.perf_counter()
 
+        t_onnx_start = time.perf_counter()
         input_name = session.get_inputs()[0].name
         outputs = session.run(None, {input_name: img_np})
+        t_onnx_end = time.perf_counter()
 
+        t_post_start = time.perf_counter()
         predictions = outputs[0][0]  # shape: [num_attrs, num_anchors]
         
         # Load class names metadata
@@ -312,6 +318,15 @@ def _run_onnxruntime_v2_inference(image_bytes: bytes, conf_threshold: float = 0.
 
         if len(filtered_scores) == 0:
             t_end = time.perf_counter()
+            t_post_end = t_end
+            logger.info(
+                f"Vision timing: payload={len(image_bytes)}B res={orig_w}x{orig_h} "
+                f"decode={round((t_decode_end-t_decode_start)*1000, 1)}ms "
+                f"prep={round((t_prep_end-t_prep_start)*1000, 1)}ms "
+                f"onnx={round((t_onnx_end-t_onnx_start)*1000, 1)}ms "
+                f"post={round((t_post_end-t_post_start)*1000, 1)}ms "
+                f"total={round((t_end-t_start)*1000, 1)}ms (0 objects)"
+            )
             return {
                 "success": True,
                 "model": "grocery_yolov8_v2",
@@ -354,7 +369,17 @@ def _run_onnxruntime_v2_inference(image_bytes: bytes, conf_threshold: float = 0.
             })
 
         t_end = time.perf_counter()
+        t_post_end = t_end
         inference_ms = round((t_end - t_start) * 1000, 1)
+
+        logger.info(
+            f"Vision timing: payload={len(image_bytes)}B res={orig_w}x{orig_h} "
+            f"decode={round((t_decode_end-t_decode_start)*1000, 1)}ms "
+            f"prep={round((t_prep_end-t_prep_start)*1000, 1)}ms "
+            f"onnx={round((t_onnx_end-t_onnx_start)*1000, 1)}ms "
+            f"post={round((t_post_end-t_post_start)*1000, 1)}ms "
+            f"total={inference_ms}ms ({len(detections)} objects)"
+        )
 
         return {
             "success": True,
