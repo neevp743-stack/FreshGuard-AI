@@ -7,7 +7,8 @@ from app.core.security import get_current_user
 from app.models.models import User, Inventory, HouseholdMember, ConsumptionLog, PurchaseHistory
 from app.schemas.schemas import (
     InventoryCreate, InventoryUpdate, InventoryOut, ConsumptionLogCreate,
-    FromDetectionsRequest, BulkInventoryCreate, ConfirmedDetectionItem
+    FromDetectionsRequest, BulkInventoryCreate, ConfirmedDetectionItem,
+    CheckDetectionsRequest, ExistingInventoryMatch
 )
 from app.services.shelf_life import get_class_rule, calculate_estimated_expiry, CLASS_MAPPING_RULES
 
@@ -116,6 +117,55 @@ def add_inventory_item(
     out.days_until_expiry = days
     return out
 
+@router.post("/check-existing", response_model=List[ExistingInventoryMatch])
+def check_existing_inventory(
+    payload: CheckDetectionsRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    User-isolated check for existing inventory items matching detected class_ids (0..34).
+    Prevents silent duplicate creation across all 35 FreshGuard Vision classes.
+    """
+    member = db.query(HouseholdMember).filter(HouseholdMember.user_id == current_user.id).first()
+    if not member:
+        raise HTTPException(status_code=400, detail="User not assigned to a household")
+
+    results = []
+    for cid in payload.class_ids:
+        if cid not in CLASS_MAPPING_RULES:
+            continue
+        rule = CLASS_MAPPING_RULES[cid]
+        prod_name = rule["display_name"]
+
+        # Scope query strictly to the authenticated user's household
+        existing = db.query(Inventory).filter(
+            Inventory.household_id == member.household_id,
+            Inventory.product_name.ilike(prod_name)
+        ).order_by(Inventory.updated_at.desc()).first()
+
+        if existing:
+            results.append(ExistingInventoryMatch(
+                class_id=cid,
+                class_name=rule["display_name"],
+                already_in_inventory=True,
+                existing_item_id=existing.id,
+                existing_quantity=existing.quantity,
+                existing_location=existing.storage_location,
+                existing_expiry_date=existing.expiry_date
+            ))
+        else:
+            results.append(ExistingInventoryMatch(
+                class_id=cid,
+                class_name=rule["display_name"],
+                already_in_inventory=False,
+                existing_item_id=None,
+                existing_quantity=0.0,
+                existing_location=None,
+                existing_expiry_date=None
+            ))
+    return results
+
 @router.post("/from-detections", response_model=List[InventoryOut])
 def add_inventory_from_detections(
     payload: FromDetectionsRequest,
@@ -124,8 +174,8 @@ def add_inventory_from_detections(
 ):
     """
     Converts confirmed FreshGuard Vision 35-class detections into persistent inventory items.
+    Supports 'add' (merge quantity), 'separate_batch' (new batch), and 'skip' (do not save).
     Validates class IDs against official 35-class mapping (0..34).
-    Rejects invalid or unknown class IDs with HTTP 400.
     """
     member = db.query(HouseholdMember).filter(HouseholdMember.user_id == current_user.id).first()
     if not member:
@@ -134,10 +184,14 @@ def add_inventory_from_detections(
     if not payload.items:
         raise HTTPException(status_code=400, detail="No detection items provided")
 
-    new_inventory_items = []
+    saved_items = []
     now = datetime.utcnow()
 
     for item_in in payload.items:
+        # Handle SKIP action
+        if item_in.action == "skip":
+            continue
+
         if item_in.class_id not in CLASS_MAPPING_RULES:
             raise HTTPException(
                 status_code=400,
@@ -151,6 +205,30 @@ def add_inventory_from_detections(
         p_date = item_in.purchase_date or now
         e_date = item_in.expiry_date or (p_date + timedelta(days=rule["shelf_life_days"]))
 
+        # Handle ADD (Merge into existing item)
+        if item_in.action == "add":
+            existing = None
+            if item_in.existing_item_id:
+                existing = db.query(Inventory).filter(
+                    Inventory.id == item_in.existing_item_id,
+                    Inventory.household_id == member.household_id
+                ).first()
+            else:
+                existing = db.query(Inventory).filter(
+                    Inventory.household_id == member.household_id,
+                    Inventory.product_name.ilike(prod_name)
+                ).first()
+
+            if existing:
+                existing.quantity += max(1.0, item_in.quantity)
+                existing.estimated_remaining_quantity = existing.quantity
+                existing.updated_at = now
+                st, days = calculate_status_and_days(existing)
+                existing.status = st
+                saved_items.append(existing)
+                continue
+
+        # Handle SEPARATE BATCH or NEW ITEM
         inv_item = Inventory(
             user_id=current_user.id,
             household_id=member.household_id,
@@ -167,12 +245,12 @@ def add_inventory_from_detections(
         st, days = calculate_status_and_days(inv_item)
         inv_item.status = st
         db.add(inv_item)
-        new_inventory_items.append(inv_item)
+        saved_items.append(inv_item)
 
     db.commit()
 
     results = []
-    for item in new_inventory_items:
+    for item in saved_items:
         db.refresh(item)
         st, days = calculate_status_and_days(item)
         out = InventoryOut.from_orm(item)

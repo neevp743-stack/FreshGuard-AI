@@ -1001,7 +1001,7 @@ async function deleteItem(id) {
       reader.readAsDataURL(file);
     }
 
-    function openReviewConfirmationModal(detections) {
+    async function openReviewConfirmationModal(detections) {
       stopCamera();
       const aggregated = {};
       detections.forEach(d => {
@@ -1012,42 +1012,107 @@ async function deleteItem(id) {
             name: d.class_name,
             quantity: 1,
             confidence: d.confidence,
-            location: 'Fridge'
+            location: 'Fridge',
+            action: 'add',
+            existing_item_id: null,
+            existing_quantity: 0,
+            already_in_inventory: false
           };
         } else {
           aggregated[cid].quantity += 1;
         }
       });
 
-      currentDetectionsToReview = Object.values(aggregated);
+      const currentItems = Object.values(aggregated);
+      const classIds = currentItems.map(i => i.class_id);
+
+      // Pre-flight duplicate check against user's household inventory
+      const token = localStorage.getItem('freshguard_token');
+      const headers = token ? { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' } : { 'Content-Type': 'application/json' };
+
+      try {
+        const checkRes = await fetch(`${API_BASE}/inventory/check-existing`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ class_ids: classIds })
+        });
+        if (checkRes.ok) {
+          const matches = await checkRes.json();
+          const matchMap = {};
+          matches.forEach(m => { matchMap[m.class_id] = m; });
+
+          currentItems.forEach(item => {
+            const match = matchMap[item.class_id];
+            if (match && match.already_in_inventory) {
+              item.already_in_inventory = true;
+              item.existing_item_id = match.existing_item_id;
+              item.existing_quantity = match.existing_quantity;
+              item.action = 'add';
+              if (match.existing_location) item.location = match.existing_location;
+            }
+          });
+        }
+      } catch (err) {
+        console.warn("Pre-flight check error:", err);
+      }
+
+      currentDetectionsToReview = currentItems;
       renderConfirmationModalRows();
       document.getElementById('confirm-modal').classList.add('open');
     }
 
     function renderConfirmationModalRows() {
       const container = document.getElementById('confirm-items-list');
-      container.innerHTML = currentDetectionsToReview.map((item, idx) => `
-        <div class="confirm-item-row">
-          <div class="confirm-item-info">
-            <strong style="text-transform: capitalize; font-size: 15px;">${item.name}</strong>
-            <span style="font-size: 11px; color: var(--emerald);">Confidence ${(item.confidence * 100).toFixed(1)}%</span>
-          </div>
-          <div class="confirm-controls">
-            <div class="qty-stepper">
-              <button class="step-btn" onclick="updateConfirmQty(${idx}, -1)">-</button>
-              <span style="font-weight: 700; font-size: 13px;">${item.quantity}</span>
-              <button class="step-btn" onclick="updateConfirmQty(${idx}, 1)">+</button>
+      container.innerHTML = currentDetectionsToReview.map((item, idx) => {
+        const isDup = item.already_in_inventory;
+        const totalIfMerged = (item.existing_quantity + item.quantity);
+        return `
+          <div class="confirm-item-row" style="flex-direction: column; align-items: stretch; gap: 10px; padding: 14px; background: rgba(15, 23, 42, 0.6); border: 1px solid ${isDup ? 'var(--amber)' : 'var(--border)'}; border-radius: 12px; margin-bottom: 10px;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <div>
+                <strong style="text-transform: capitalize; font-size: 16px;">${item.name}</strong>
+                <span style="font-size: 11px; color: var(--emerald); margin-left: 8px;">Conf ${(item.confidence * 100).toFixed(0)}%</span>
+              </div>
+              ${isDup 
+                ? `<span style="background: rgba(245, 158, 11, 0.2); color: var(--amber); border: 1px solid var(--amber); font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 6px;">🟡 ALREADY IN INVENTORY</span>`
+                : `<span style="background: rgba(16, 185, 129, 0.2); color: var(--emerald); border: 1px solid var(--emerald); font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 6px;">🟢 NEW ITEM</span>`
+              }
             </div>
-            <select onchange="updateConfirmLoc(${idx}, this.value)">
-              <option value="Fridge" ${item.location === 'Fridge' ? 'selected' : ''}>Fridge</option>
-              <option value="Pantry" ${item.location === 'Pantry' ? 'selected' : ''}>Pantry</option>
-              <option value="Freezer" ${item.location === 'Freezer' ? 'selected' : ''}>Freezer</option>
-              <option value="Kitchen Shelf" ${item.location === 'Kitchen Shelf' ? 'selected' : ''}>Kitchen Shelf</option>
-            </select>
-            <button class="btn btn-danger" style="padding: 6px 10px;" onclick="removeConfirmItem(${idx})"><i class="fa-solid fa-trash"></i></button>
+
+            ${isDup ? `
+              <div style="font-size: 12px; color: var(--text-sub); background: rgba(245, 158, 11, 0.1); padding: 8px 12px; border-radius: 8px;">
+                Existing: <strong>${item.existing_quantity}</strong> &nbsp;•&nbsp; Detected Now: <strong>+${item.quantity}</strong> &nbsp;•&nbsp; Total After Merge: <strong>${totalIfMerged}</strong>
+              </div>
+            ` : ''}
+
+            <div style="display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; margin-top: 4px;">
+              <div class="qty-stepper">
+                <button class="step-btn" onclick="updateConfirmQty(${idx}, -1)">-</button>
+                <span style="font-weight: 700; font-size: 14px; min-width: 24px; text-align: center;">${item.quantity}</span>
+                <button class="step-btn" onclick="updateConfirmQty(${idx}, 1)">+</button>
+              </div>
+
+              <select onchange="updateConfirmLoc(${idx}, this.value)" style="padding: 6px 10px; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 8px; font-size: 12px;">
+                <option value="Fridge" ${item.location === 'Fridge' ? 'selected' : ''}>Fridge</option>
+                <option value="Pantry" ${item.location === 'Pantry' ? 'selected' : ''}>Pantry</option>
+                <option value="Freezer" ${item.location === 'Freezer' ? 'selected' : ''}>Freezer</option>
+                <option value="Kitchen Shelf" ${item.location === 'Kitchen Shelf' ? 'selected' : ''}>Kitchen Shelf</option>
+                <option value="Counter" ${item.location === 'Counter' ? 'selected' : ''}>Counter</option>
+              </select>
+
+              <div style="display: flex; gap: 6px;">
+                ${isDup ? `
+                  <button class="btn ${item.action === 'add' ? 'btn-emerald' : 'btn-secondary'}" style="padding: 6px 10px; font-size: 12px;" onclick="setConfirmAction(${idx}, 'add')">ADD +${item.quantity}</button>
+                  <button class="btn ${item.action === 'separate_batch' ? 'btn-primary' : 'btn-secondary'}" style="padding: 6px 10px; font-size: 12px;" onclick="setConfirmAction(${idx}, 'separate_batch')">NEW BATCH</button>
+                ` : `
+                  <button class="btn ${item.action === 'add' ? 'btn-emerald' : 'btn-secondary'}" style="padding: 6px 10px; font-size: 12px;" onclick="setConfirmAction(${idx}, 'add')">SAVE</button>
+                `}
+                <button class="btn ${item.action === 'skip' ? 'btn-danger' : 'btn-secondary'}" style="padding: 6px 10px; font-size: 12px;" onclick="setConfirmAction(${idx}, 'skip')">SKIP</button>
+              </div>
+            </div>
           </div>
-        </div>
-      `).join('');
+        `;
+      }).join('');
     }
 
     function updateConfirmQty(idx, delta) {
@@ -1057,6 +1122,11 @@ async function deleteItem(id) {
 
     function updateConfirmLoc(idx, loc) {
       currentDetectionsToReview[idx].location = loc;
+    }
+
+    function setConfirmAction(idx, action) {
+      currentDetectionsToReview[idx].action = action;
+      renderConfirmationModalRows();
     }
 
     function removeConfirmItem(idx) {
@@ -1074,18 +1144,29 @@ async function deleteItem(id) {
       const token = localStorage.getItem('freshguard_token');
       const headers = token ? { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' } : { 'Content-Type': 'application/json' };
 
-      const res = await fetch(`${API_BASE}/inventory/from-detections`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ items: currentDetectionsToReview })
-      });
+      try {
+        const res = await fetch(`${API_BASE}/inventory/from-detections`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ items: currentDetectionsToReview })
+        });
 
-      if (res.ok) {
-        closeConfirmModal();
-        switchTab('inventory');
-        loadFreshnessData();
-      } else {
-        alert("Failed to save items to inventory.");
+        if (res.ok) {
+          const savedData = await res.json();
+          closeConfirmModal();
+          switchTab('inventory');
+          loadFreshnessData();
+
+          const mergedCount = currentDetectionsToReview.filter(i => i.already_in_inventory && i.action === 'add').length;
+          const newBatchCount = currentDetectionsToReview.filter(i => i.action === 'separate_batch' || (!i.already_in_inventory && i.action === 'add')).length;
+          const skippedCount = currentDetectionsToReview.filter(i => i.action === 'skip').length;
+
+          alert(`✓ FreshGuard Inventory Updated!\n\n• ${savedData.length} item(s) saved\n• ${mergedCount} existing item(s) merged\n• ${newBatchCount} new batch(es) created\n• ${skippedCount} item(s) skipped`);
+        } else {
+          alert("Failed to save items to inventory.");
+        }
+      } catch (err) {
+        alert("Network error saving inventory: " + err.message);
       }
     }
 

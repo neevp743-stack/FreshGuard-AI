@@ -95,10 +95,30 @@ class ConfirmedDetectionItem(BaseModel):
     location: str = "Fridge"
     purchase_date: Optional[datetime] = None
     expiry_date: Optional[datetime] = None
+    action: str = "add"  # 'add' (merge), 'separate_batch', 'skip'
+    existing_item_id: Optional[int] = None
+    confidence: Optional[float] = None
+    source: Optional[str] = "vision_webcam"
     notes: Optional[str] = None
 
 class FromDetectionsRequest(BaseModel):
     items: List[ConfirmedDetectionItem]
+
+class CheckDetectionClass(BaseModel):
+    class_id: int
+    name: str
+
+class CheckDetectionsRequest(BaseModel):
+    class_ids: List[int]
+
+class ExistingInventoryMatch(BaseModel):
+    class_id: int
+    class_name: str
+    already_in_inventory: bool
+    existing_item_id: Optional[int] = None
+    existing_quantity: float = 0.0
+    existing_location: Optional[str] = None
+    existing_expiry_date: Optional[datetime] = None
 
 class BulkInventoryCreate(BaseModel):
     items: List[InventoryCreate]
