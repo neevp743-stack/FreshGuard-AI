@@ -19,6 +19,8 @@ datasets/real_world_test/
 training/datasets/archive/
 training/datasets/freshguard_indian_grocery/images/
 training/datasets/freshguard_indian_grocery/labels/
+training/datasets/freshguard_v4_candidates/images/
+training/datasets/freshguard_v4_candidates/labels/
 runs/
 training/vision_models/v3_training/run_v3/
 
