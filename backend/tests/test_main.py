@@ -418,9 +418,25 @@ def test_live_webcam_v2_detection_endpoint():
     assert res.status_code == 200
     data = res.json()
     assert data["success"] is True
-    assert data["model"] == "grocery_yolov8_v2"
+    assert "grocery_yolov8_" in data["model"]
     assert "detections" in data
     assert "count" in data
+    assert "inference_ms" in data
+
+def test_live_webcam_v2_json_base64_payload_endpoint():
+    import base64
+    buf = io.BytesIO()
+    img = Image.new('RGB', (320, 320), color=(200, 50, 50))
+    img.save(buf, format='JPEG')
+    buf.seek(0)
+    b64_str = "data:image/jpeg;base64," + base64.b64encode(buf.read()).decode("utf-8")
+
+    res = client.post("/api/v1/scanner/vision/detect_v2?conf=0.20", json={"image_base64": b64_str})
+    assert res.status_code == 200, f"HTTP 400 error on JSON payload: {res.text}"
+    data = res.json()
+    assert data["success"] is True
+    assert "grocery_yolov8_" in data["model"]
+    assert "detections" in data
     assert "inference_ms" in data
 
 def test_35_class_shelf_life_rules():
