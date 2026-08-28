@@ -9,12 +9,16 @@ yolov8n.pt
 vision_feedback_metadata.jsonl
 
 # Vision Dataset & Staging Directories
+datasets/archive.zip
 datasets/grocery_vision/images/
 datasets/grocery_vision/labels/
 datasets/grocery_vision/raw_unannotated/
 datasets/_acquisition/
 datasets/_vegetable_acquisition/
 datasets/real_world_test/
+training/datasets/archive/
+training/datasets/freshguard_indian_grocery/images/
+training/datasets/freshguard_indian_grocery/labels/
 
 # Trained Model Binaries (Include V2 experimental model weights & ONNX export for Render deployment)
 *.pt
