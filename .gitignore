@@ -23,6 +23,9 @@ training/datasets/freshguard_v4_candidates/images/
 training/datasets/freshguard_v4_candidates/labels/
 training/datasets/grocery_4gb_inspection/Grocer-Help/
 datasets/Grocer-Help*
+training/v5/datasets/freshguard_v5_grocery/images/
+training/v5/datasets/freshguard_v5_grocery/labels/
+training/v5/models/
 runs/
 training/vision_models/v3_training/run_v3/
 
