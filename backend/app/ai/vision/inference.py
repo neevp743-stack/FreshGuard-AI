@@ -139,12 +139,26 @@ _ONNX_SESSION_CACHE = None
 _LAST_ONNX_ERROR = None
 
 def find_v2_onnx_path() -> Optional[str]:
-    candidates = [
-        os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../../vision_models/deployment/grocery_yolov8_v2_web/model.onnx")),
-        os.path.abspath(os.path.join(os.getcwd(), "vision_models/deployment/grocery_yolov8_v2_web/model.onnx")),
-        os.path.abspath(os.path.join(os.getcwd(), "../vision_models/deployment/grocery_yolov8_v2_web/model.onnx")),
-        os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../../../vision_models/deployment/grocery_yolov8_v2_web/model.onnx")),
-    ]
+    try:
+        from app.core.config import settings
+        selected_version = getattr(settings, "FRESHGUARD_VISION_MODEL", "v2").lower()
+    except Exception:
+        selected_version = "v2"
+
+    if selected_version == "v3":
+        candidates = [
+            os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../../training/vision_models/v3_training/deployment/model.onnx")),
+            os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../../vision_models/deployment/grocery_yolov8_v3_web/model.onnx")),
+            os.path.abspath(os.path.join(os.getcwd(), "training/vision_models/v3_training/deployment/model.onnx")),
+            os.path.abspath(os.path.join(os.getcwd(), "vision_models/deployment/grocery_yolov8_v3_web/model.onnx")),
+        ]
+    else:
+        candidates = [
+            os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../../vision_models/deployment/grocery_yolov8_v2_web/model.onnx")),
+            os.path.abspath(os.path.join(os.getcwd(), "vision_models/deployment/grocery_yolov8_v2_web/model.onnx")),
+            os.path.abspath(os.path.join(os.getcwd(), "../vision_models/deployment/grocery_yolov8_v2_web/model.onnx")),
+            os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../../../vision_models/deployment/grocery_yolov8_v2_web/model.onnx")),
+        ]
     for cand in candidates:
         if os.path.exists(cand):
             return cand
@@ -243,13 +257,18 @@ def _run_onnxruntime_v2_inference(image_bytes: bytes, conf_threshold: float = 0.
         # YOLOv8 output shape: [1, 39, 8400] where 39 = 4 (bbox) + 35 (classes)
         predictions = outputs[0][0]  # shape: [39, 8400]
         
-        # Load 35 class names metadata
+        # Load class names metadata
         class_names = []
-        meta_path = os.path.join(os.path.dirname(onnx_path), "classes_metadata.json")
-        if os.path.exists(meta_path):
-            with open(meta_path, "r") as f:
-                meta = json.load(f)
-                class_names = meta.get("classes", [])
+        meta_candidates = [
+            os.path.join(os.path.dirname(onnx_path), "v3_classes_metadata.json"),
+            os.path.join(os.path.dirname(onnx_path), "classes_metadata.json"),
+        ]
+        for meta_path in meta_candidates:
+            if os.path.exists(meta_path):
+                with open(meta_path, "r") as f:
+                    meta = json.load(f)
+                    class_names = meta.get("classes", [])
+                    break
 
         boxes = predictions[:4, :]      # [4, 8400] (xc, yc, w, h)
         scores = predictions[4:, :]     # [35, 8400]
