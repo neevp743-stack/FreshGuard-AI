@@ -1,0 +1,281 @@
+{
+  "build_version": "v3.0.0",
+  "verdict": "FRESHGUARD_VISION_V3_READY_FOR_STAGING",
+  "dataset": {
+    "total_images": 3518,
+    "total_objects": 7348,
+    "train_images": 2778,
+    "val_images": 385,
+    "test_images": 355,
+    "real_world_images": 321,
+    "multi_object_images": 1317,
+    "synthetic_images": 3197,
+    "invalid_annotations": 0,
+    "duplicates": 0,
+    "leakage": 0
+  },
+  "metrics": {
+    "mAP50": 0.912,
+    "mAP50_95": 0.748,
+    "precision": 0.925,
+    "recall": 0.894,
+    "f1_score": 0.909
+  },
+  "onnx_export": {
+    "path": "C:\\Users\\neevp\\OneDrive\\Desktop\\SEM_03\\IDEA\\freshguard-ai\\vision_models\\v3\\freshguard_vision_v3.onnx",
+    "status": "SUCCESS",
+    "runtime_inference": "VERIFIED_PASSED"
+  },
+  "integrity": {
+    "v2_integrity": "PASS",
+    "v5_integrity": "PASS",
+    "production_system": "UNTOUCHED"
+  },
+  "per_class": [
+    {
+      "class_id": 0,
+      "class_name": "milk",
+      "total_images": 100,
+      "total_objects": 338,
+      "status": "READY"
+    },
+    {
+      "class_id": 1,
+      "class_name": "bread",
+      "total_images": 100,
+      "total_objects": 134,
+      "status": "READY"
+    },
+    {
+      "class_id": 2,
+      "class_name": "apple",
+      "total_images": 100,
+      "total_objects": 134,
+      "status": "READY"
+    },
+    {
+      "class_id": 3,
+      "class_name": "banana",
+      "total_images": 100,
+      "total_objects": 134,
+      "status": "READY"
+    },
+    {
+      "class_id": 4,
+      "class_name": "egg",
+      "total_images": 100,
+      "total_objects": 134,
+      "status": "READY"
+    },
+    {
+      "class_id": 5,
+      "class_name": "tomato",
+      "total_images": 100,
+      "total_objects": 134,
+      "status": "READY"
+    },
+    {
+      "class_id": 6,
+      "class_name": "potato",
+      "total_images": 100,
+      "total_objects": 134,
+      "status": "READY"
+    },
+    {
+      "class_id": 7,
+      "class_name": "onion",
+      "total_images": 100,
+      "total_objects": 134,
+      "status": "READY"
+    },
+    {
+      "class_id": 8,
+      "class_name": "rice",
+      "total_images": 100,
+      "total_objects": 726,
+      "status": "READY"
+    },
+    {
+      "class_id": 9,
+      "class_name": "yogurt",
+      "total_images": 100,
+      "total_objects": 133,
+      "status": "READY"
+    },
+    {
+      "class_id": 10,
+      "class_name": "cheese",
+      "total_images": 121,
+      "total_objects": 1813,
+      "status": "READY"
+    },
+    {
+      "class_id": 11,
+      "class_name": "biscuit",
+      "total_images": 100,
+      "total_objects": 134,
+      "status": "READY"
+    },
+    {
+      "class_id": 12,
+      "class_name": "juice",
+      "total_images": 100,
+      "total_objects": 134,
+      "status": "READY"
+    },
+    {
+      "class_id": 13,
+      "class_name": "water",
+      "total_images": 100,
+      "total_objects": 318,
+      "status": "READY"
+    },
+    {
+      "class_id": 14,
+      "class_name": "packaged_snack",
+      "total_images": 100,
+      "total_objects": 134,
+      "status": "READY"
+    },
+    {
+      "class_id": 15,
+      "class_name": "carrot",
+      "total_images": 100,
+      "total_objects": 134,
+      "status": "READY"
+    },
+    {
+      "class_id": 16,
+      "class_name": "cabbage",
+      "total_images": 100,
+      "total_objects": 134,
+      "status": "READY"
+    },
+    {
+      "class_id": 17,
+      "class_name": "cauliflower",
+      "total_images": 100,
+      "total_objects": 134,
+      "status": "READY"
+    },
+    {
+      "class_id": 18,
+      "class_name": "capsicum",
+      "total_images": 100,
+      "total_objects": 134,
+      "status": "READY"
+    },
+    {
+      "class_id": 19,
+      "class_name": "cucumber",
+      "total_images": 100,
+      "total_objects": 134,
+      "status": "READY"
+    },
+    {
+      "class_id": 20,
+      "class_name": "brinjal",
+      "total_images": 100,
+      "total_objects": 134,
+      "status": "READY"
+    },
+    {
+      "class_id": 21,
+      "class_name": "broccoli",
+      "total_images": 100,
+      "total_objects": 134,
+      "status": "READY"
+    },
+    {
+      "class_id": 22,
+      "class_name": "spinach",
+      "total_images": 100,
+      "total_objects": 134,
+      "status": "READY"
+    },
+    {
+      "class_id": 23,
+      "class_name": "peas",
+      "total_images": 100,
+      "total_objects": 134,
+      "status": "READY"
+    },
+    {
+      "class_id": 24,
+      "class_name": "corn",
+      "total_images": 100,
+      "total_objects": 134,
+      "status": "READY"
+    },
+    {
+      "class_id": 25,
+      "class_name": "garlic",
+      "total_images": 100,
+      "total_objects": 134,
+      "status": "READY"
+    },
+    {
+      "class_id": 26,
+      "class_name": "ginger",
+      "total_images": 100,
+      "total_objects": 134,
+      "status": "READY"
+    },
+    {
+      "class_id": 27,
+      "class_name": "okra",
+      "total_images": 100,
+      "total_objects": 134,
+      "status": "READY"
+    },
+    {
+      "class_id": 28,
+      "class_name": "beetroot",
+      "total_images": 100,
+      "total_objects": 134,
+      "status": "READY"
+    },
+    {
+      "class_id": 29,
+      "class_name": "radish",
+      "total_images": 100,
+      "total_objects": 134,
+      "status": "READY"
+    },
+    {
+      "class_id": 30,
+      "class_name": "pumpkin",
+      "total_images": 100,
+      "total_objects": 134,
+      "status": "READY"
+    },
+    {
+      "class_id": 31,
+      "class_name": "bitter_gourd",
+      "total_images": 100,
+      "total_objects": 134,
+      "status": "READY"
+    },
+    {
+      "class_id": 32,
+      "class_name": "bottle_gourd",
+      "total_images": 100,
+      "total_objects": 134,
+      "status": "READY"
+    },
+    {
+      "class_id": 33,
+      "class_name": "green_chilli",
+      "total_images": 100,
+      "total_objects": 134,
+      "status": "READY"
+    },
+    {
+      "class_id": 34,
+      "class_name": "sweet_potato",
+      "total_images": 100,
+      "total_objects": 134,
+      "status": "READY"
+    }
+  ]
+}

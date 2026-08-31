@@ -1,0 +1,25 @@
+{
+  "status": "READY_FOR_MANUAL_REVIEW",
+  "source_dataset": "C:\\Users\\neevp\\OneDrive\\Desktop\\SEM_03\\IDEA\\freshguard-ai\\datasets\\Grocer-Help\\Grocer-Help",
+  "clean_workspace": "C:\\Users\\neevp\\OneDrive\\Desktop\\SEM_03\\IDEA\\freshguard-ai\\datasets\\freshguard_35_clean",
+  "reconciliation": {
+    "total_images": 7371,
+    "total_labels": 7371,
+    "images_with_valid_labels": 6014,
+    "images_with_empty_labels": 1041,
+    "images_with_invalid_labels": 1169,
+    "images_without_labels": 0,
+    "labels_without_images": 0,
+    "exact_duplicate_images_excluded": 124
+  },
+  "clean_dataset_stats": {
+    "saved_images": 321,
+    "saved_objects": 3065,
+    "supported_official_classes": 6,
+    "missing_official_classes": 29,
+    "min_objects_per_class": 0,
+    "max_objects_per_class": 1813,
+    "median_objects_per_class": 0.0
+  },
+  "training_recommendation": "NO-GO for model training until missing produce classes (milk, apple, banana, egg, tomato, potato, onion, etc.) are augmented into freshguard_35_clean workspace."
+}

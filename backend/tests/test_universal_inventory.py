@@ -8,17 +8,39 @@ if BASE_DIR not in sys.path:
     sys.path.insert(0, BASE_DIR)
 
 from main import app
-from app.core.database import Base, engine, get_db
+from app.core.database import Base, get_db
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 
+TEST_SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"
+test_engine = create_engine(
+    TEST_SQLALCHEMY_DATABASE_URL,
+    connect_args={"check_same_thread": False},
+    poolclass=StaticPool,
+)
+_keep_alive_conn = test_engine.connect()
+TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=test_engine)
+
+def override_get_db():
+    db = TestingSessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+app.dependency_overrides[get_db] = override_get_db
 client = TestClient(app)
 
 @pytest.fixture(autouse=True)
 def clean_db():
-    Base.metadata.drop_all(bind=engine)
-    Base.metadata.create_all(bind=engine)
+    Base.metadata.create_all(bind=test_engine)
+    conn = test_engine.connect()
     yield
-    Base.metadata.drop_all(bind=engine)
-    Base.metadata.create_all(bind=engine)
+    conn.close()
+    Base.metadata.drop_all(bind=test_engine)
+
+
 
 def get_auth_token(email="user@freshguard.com", password="password123"):
     r = client.post("/api/v1/auth/register", json={

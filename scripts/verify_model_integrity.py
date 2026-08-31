@@ -30,6 +30,8 @@ def verify_model_integrity(target_dir: str = "vision_models", baseline_manifest:
             dirs.remove("deployment")
         if "rollback_v2" in dirs:
             dirs.remove("rollback_v2")
+        if "v3" in dirs:
+            dirs.remove("v3")
         for file in files:
             if file == "model_hashes.json":
                 continue

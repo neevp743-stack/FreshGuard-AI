@@ -8,6 +8,8 @@ class UserRegister(BaseModel):
     password: str
     full_name: Optional[str] = None
     household_name: Optional[str] = "My Household"
+    role: Optional[str] = "USER"
+
 
 class UserLogin(BaseModel):
     email: EmailStr
@@ -22,6 +24,10 @@ class TokenResponse(BaseModel):
     role: str = "USER"
     household_id: int
     household_name: str
+
+class VisionDetectPayload(BaseModel):
+    image_base64: Optional[str] = None
+
 
 class HouseholdOut(BaseModel):
     id: int

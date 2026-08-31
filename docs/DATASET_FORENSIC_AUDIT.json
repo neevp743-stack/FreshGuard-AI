@@ -1,0 +1,63 @@
+{
+  "audit_version": "1.0.0",
+  "zip_archives": [
+    {
+      "path": "C:\\Users\\neevp\\OneDrive\\Desktop\\grocery_vision\\images\\zip1.zip",
+      "size_mb": 2.17,
+      "total_files": 359,
+      "image_files": 328,
+      "label_files": 28,
+      "has_data_yaml": false
+    },
+    {
+      "path": "C:\\Users\\neevp\\OneDrive\\Desktop\\grocery_vision\\labels\\zip2.zip",
+      "size_mb": 0.09,
+      "total_files": 334,
+      "image_files": 0,
+      "label_files": 328,
+      "has_data_yaml": false
+    },
+    {
+      "path": "C:\\Users\\neevp\\OneDrive\\Desktop\\grocery_vision\\zip 3.zip",
+      "size_mb": 0.0,
+      "total_files": 0,
+      "image_files": 0,
+      "label_files": 0,
+      "has_data_yaml": false
+    },
+    {
+      "path": "C:\\Users\\neevp\\OneDrive\\Desktop\\SEM_03\\IDEA\\freshguard-ai\\datasets\\Grocer-Help.zip",
+      "size_mb": 4007.9,
+      "total_files": 14878,
+      "image_files": 7440,
+      "label_files": 7430,
+      "has_data_yaml": true
+    },
+    {
+      "path": "C:\\Users\\neevp\\OneDrive\\Desktop\\SEM_03\\IDEA\\freshguard-ai\\datasets\\archive.zip",
+      "size_mb": 243.16,
+      "total_files": 15907,
+      "image_files": 7952,
+      "label_files": 7954,
+      "has_data_yaml": true
+    }
+  ],
+  "metrics": {
+    "total_images": 7440,
+    "total_labels": 7430,
+    "total_objects": 72154,
+    "matched_pairs": 7371,
+    "missing_labels": 0,
+    "orphan_labels": 0,
+    "empty_labels": 1053,
+    "invalid_annotations": 13472,
+    "corrupt_images": 0,
+    "unique_class_ids": 606,
+    "configured_classes": 647,
+    "missing_fg_classes": 30,
+    "duplicates": 193
+  },
+  "classification_folder_verdict": "REJECTED (FreshGuard requires YOLO object detection with bounding boxes, quantity counting, and multi-object aggregation. Classification folders (potato/, ginger/) destroy spatial coordinates and multi-object capabilities).",
+  "most_likely_misclassification_cause": "644-class severe distribution imbalance, unmapped granular subclasses, and single-item studio crop bias vs live webcam clutter.",
+  "training_go_no_go": "NO-GO"
+}

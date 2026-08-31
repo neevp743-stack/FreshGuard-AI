@@ -1,5 +1,7 @@
+import os
 import numpy as np
 from fastapi import FastAPI
+from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.core.database import Base, engine
@@ -81,5 +83,15 @@ def root():
         "health_endpoint": "/health",
         "api_v1_docs": "/docs"
     }
+
+@app.get("/vision-v3-test", response_class=HTMLResponse)
+def get_vision_v3_test_page():
+    """Serves the dedicated FreshGuard Vision V3 Staging Webcam Test Interface."""
+    html_path = os.path.join(os.path.dirname(__file__), "../frontend/web/vision_v3_test.html")
+    if os.path.exists(html_path):
+        with open(html_path, "r", encoding="utf-8") as f:
+            return HTMLResponse(content=f.read())
+    return HTMLResponse(content="<h1>FreshGuard Vision V3 Test Page Not Found</h1>", status_code=404)
+
 
 

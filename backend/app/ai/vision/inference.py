@@ -170,6 +170,8 @@ def find_v2_onnx_path() -> Optional[str]:
         ]
     elif selected_version == "v3":
         candidates = [
+            os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../../vision_models/v3/freshguard_vision_v3.onnx")),
+            os.path.abspath(os.path.join(os.getcwd(), "vision_models/v3/freshguard_vision_v3.onnx")),
             os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../../training/vision_models/v3_training/deployment/model.onnx")),
             os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../../vision_models/deployment/grocery_yolov8_v3_web/model.onnx")),
             os.path.abspath(os.path.join(os.getcwd(), "training/vision_models/v3_training/deployment/model.onnx")),
@@ -187,17 +189,20 @@ def find_v2_onnx_path() -> Optional[str]:
             return cand
     return None
 
+_CURRENT_LOADED_MODEL_PATH = None
+
 def get_onnx_session():
-    global _ONNX_SESSION_CACHE, _LAST_ONNX_ERROR
-    if _ONNX_SESSION_CACHE is None:
-        onnx_path = find_v2_onnx_path()
-        if not onnx_path:
-            _LAST_ONNX_ERROR = "model.onnx file not found in any candidate path"
-            return None
+    global _ONNX_SESSION_CACHE, _LAST_ONNX_ERROR, _CURRENT_LOADED_MODEL_PATH
+    onnx_path = find_v2_onnx_path()
+    if not onnx_path:
+        _LAST_ONNX_ERROR = "model.onnx file not found in any candidate path"
+        return None
+    if _ONNX_SESSION_CACHE is None or _CURRENT_LOADED_MODEL_PATH != onnx_path:
         try:
             import onnxruntime as ort
             logger.info(f"Initializing ONNX Runtime session with CPUExecutionProvider from: {onnx_path}")
             _ONNX_SESSION_CACHE = ort.InferenceSession(onnx_path, providers=['CPUExecutionProvider'])
+            _CURRENT_LOADED_MODEL_PATH = onnx_path
             _LAST_ONNX_ERROR = None
         except Exception as e:
             _LAST_ONNX_ERROR = f"Failed to load ONNX session: {e}"
@@ -302,7 +307,13 @@ def _run_onnxruntime_v2_inference(image_bytes: bytes, conf_threshold: float = 0.
             if os.path.exists(meta_path):
                 with open(meta_path, "r", encoding="utf-8") as f:
                     meta = json.load(f)
-                    class_names = meta.get("classes", [])
+                    c_raw = meta.get("classes", [])
+                    if isinstance(c_raw, dict):
+                        class_names = [c_raw.get(str(i), f"class_{i}") for i in range(len(c_raw))]
+                    elif isinstance(c_raw, list):
+                        class_names = c_raw
+                    else:
+                        class_names = []
                     break
 
         boxes = predictions[:4, :]      # [4, 8400] (xc, yc, w, h)

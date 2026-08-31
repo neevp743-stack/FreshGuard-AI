@@ -15,15 +15,22 @@ from app.services.ocr_image import process_raw_image_ocr
 from app.services.notifications import evaluate_and_generate_notifications
 from app.ai.consumption import predict_item_consumption
 from main import app
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 
-# Setup isolated test database
-SQLALCHEMY_DATABASE_URL = "sqlite:///./test_freshguard.db"
-engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False})
+TEST_SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"
+engine = create_engine(
+    TEST_SQLALCHEMY_DATABASE_URL,
+    connect_args={"check_same_thread": False},
+    poolclass=StaticPool,
+)
+_keep_alive_conn = engine.connect()
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 def override_get_db():
+    db = TestingSessionLocal()
     try:
-        db = TestingSessionLocal()
         yield db
     finally:
         db.close()
@@ -35,8 +42,14 @@ client = TestClient(app)
 @pytest.fixture(autouse=True)
 def setup_db():
     Base.metadata.create_all(bind=engine)
+    conn = engine.connect()
     yield
+    conn.close()
     Base.metadata.drop_all(bind=engine)
+
+
+
+
 
 # ==================== EXISTING CORE TESTS ====================
 
@@ -356,38 +369,38 @@ def test_lightweight_health_endpoints():
     assert d2["status"] == "READY"
 
 def test_rbac_user_admin_access_control():
-    db = TestingSessionLocal()
-    # Create standard USER
-    user_normal = User(email="normaluser@freshguard.ai", password_hash=hash_password("pass"), role="USER")
-    # Create ADMIN user
-    user_admin = User(email="adminuser@freshguard.ai", password_hash=hash_password("pass"), role="ADMIN")
-    db.add(user_normal)
-    db.add(user_admin)
-    db.commit()
-    db.refresh(user_normal)
-    db.refresh(user_admin)
-
-    from app.core.security import create_access_token
-    token_normal = create_access_token({"sub": user_normal.id})
-    token_admin = create_access_token({"sub": user_admin.id})
-
     # Unauthenticated request -> 401
     res_unauth = client.get("/api/v1/admin/diagnostics")
     assert res_unauth.status_code == 401
+
+    # Register normal USER -> gets USER role by default
+    res_reg_user = client.post("/api/v1/auth/register", json={"email": "normaluser@freshguard.ai", "password": "password123"})
+    assert res_reg_user.status_code == 200
+    token_normal = res_reg_user.json()["access_token"]
 
     # Normal USER request -> 403 Forbidden
     res_user = client.get("/api/v1/admin/diagnostics", headers={"Authorization": f"Bearer {token_normal}"})
     assert res_user.status_code == 403
     assert "Forbidden" in res_user.json()["detail"]
 
-    # ADMIN user request -> 200 OK
+    # Register ADMIN user -> pass role="ADMIN"
+    res_reg_admin = client.post("/api/v1/auth/register", json={"email": "adminuser@freshguard.ai", "password": "password123", "role": "ADMIN"})
+    assert res_reg_admin.status_code == 200
+    token_admin = res_reg_admin.json()["access_token"]
+
     res_admin = client.get("/api/v1/admin/diagnostics", headers={"Authorization": f"Bearer {token_admin}"})
     assert res_admin.status_code == 200
     data_admin = res_admin.json()
     assert data_admin["status"] in ["OPERATIONAL", "DEGRADED"]
     assert data_admin["process_alive"] is True
     assert "memory_usage_mb" in data_admin
-    db.close()
+
+
+    data_admin = res_admin.json()
+    assert data_admin["status"] in ["OPERATIONAL", "DEGRADED"]
+    assert data_admin["process_alive"] is True
+    assert "memory_usage_mb" in data_admin
+
 
 def test_ocr_failure_without_hardcoded_mock():
     # Submit invalid bytes that fail OCR extraction without fabricating fake milk text
