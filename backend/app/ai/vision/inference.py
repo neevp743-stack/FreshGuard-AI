@@ -195,8 +195,19 @@ def get_onnx_session():
     global _ONNX_SESSION_CACHE, _LAST_ONNX_ERROR, _CURRENT_LOADED_MODEL_PATH
     onnx_path = find_v2_onnx_path()
     if not onnx_path:
+        try:
+            from app.core.config import settings
+            if getattr(settings, "FRESHGUARD_VISION_MODEL", "v3").lower() == "v3":
+                logger.warning("V3 model path not found. Attempting fallback to V2 production model.")
+                settings.FRESHGUARD_VISION_MODEL = "v2"
+                onnx_path = find_v2_onnx_path()
+        except Exception:
+            pass
+
+    if not onnx_path:
         _LAST_ONNX_ERROR = "model.onnx file not found in any candidate path"
         return None
+
     if _ONNX_SESSION_CACHE is None or _CURRENT_LOADED_MODEL_PATH != onnx_path:
         try:
             import onnxruntime as ort
@@ -208,6 +219,19 @@ def get_onnx_session():
             _LAST_ONNX_ERROR = f"Failed to load ONNX session: {e}"
             logger.error(_LAST_ONNX_ERROR)
             _ONNX_SESSION_CACHE = None
+            try:
+                from app.core.config import settings
+                if getattr(settings, "FRESHGUARD_VISION_MODEL", "v3").lower() == "v3":
+                    logger.warning(f"V3 ONNX Runtime session failed ({e}). Falling back to V2 production model.")
+                    settings.FRESHGUARD_VISION_MODEL = "v2"
+                    v2_path = find_v2_onnx_path()
+                    if v2_path:
+                        import onnxruntime as ort
+                        _ONNX_SESSION_CACHE = ort.InferenceSession(v2_path, providers=['CPUExecutionProvider'])
+                        _CURRENT_LOADED_MODEL_PATH = v2_path
+                        _LAST_ONNX_ERROR = None
+            except Exception as fb_err:
+                logger.error(f"V2 fallback also failed: {fb_err}")
     return _ONNX_SESSION_CACHE
 
 

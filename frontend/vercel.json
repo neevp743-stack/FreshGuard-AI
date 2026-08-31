@@ -12,6 +12,10 @@
       "destination": "/web/vision_demo.html"
     },
     {
+      "source": "/vision-v3-test",
+      "destination": "/web/vision_v3_test.html"
+    },
+    {
       "source": "/index.html",
       "destination": "/web/index.html"
     },

@@ -20,15 +20,23 @@ from app.ai.vision.inference import (
 
 def test_35_class_metadata_alignment():
     onnx_path = find_v2_onnx_path()
-    assert onnx_path is not None, "V2 ONNX model path must exist"
-    meta_path = os.path.join(os.path.dirname(onnx_path), "classes_metadata.json")
-    assert os.path.exists(meta_path), "classes_metadata.json must exist"
+    assert onnx_path is not None, "ONNX model path must exist"
+    dir_name = os.path.dirname(onnx_path)
+    meta_path = os.path.join(dir_name, "v3_classes_metadata.json")
+    if not os.path.exists(meta_path):
+        meta_path = os.path.join(dir_name, "classes_metadata.json")
+    assert os.path.exists(meta_path), "Metadata JSON must exist"
 
     import json
     with open(meta_path, "r", encoding="utf-8") as f:
         meta = json.load(f)
 
-    classes = meta.get("classes", [])
+    classes_raw = meta.get("classes", meta.get("class_names", meta))
+    if isinstance(classes_raw, dict):
+        classes = [classes_raw[str(i)] if str(i) in classes_raw else classes_raw[i] for i in range(35)]
+    else:
+        classes = classes_raw
+
     assert len(classes) == 35, f"Expected 35 classes, found {len(classes)}"
     assert len(set(classes)) == 35, "Class names must be unique"
     assert classes[0] == "milk"
