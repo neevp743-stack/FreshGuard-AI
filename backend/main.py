@@ -1,5 +1,4 @@
 import os
-import numpy as np
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -33,9 +32,11 @@ def warmup_vision_model_on_startup():
     """
     try:
         from app.ai.vision.inference import get_onnx_session
-        get_onnx_session()
+        session = get_onnx_session()
+        if session:
+            print("[STARTUP] ONNX Runtime Vision Model pre-loaded successfully.")
     except Exception as e:
-        pass
+        print(f"[STARTUP WARNING] ONNX Runtime Vision Model pre-load warning: {e}")
 
 # Include Lightweight Health Router (/health and /api/v1/health)
 app.include_router(health.router)
@@ -64,15 +65,6 @@ app.include_router(notifications_router.router, prefix="/api")
 app.include_router(analytics.router, prefix="/api")
 app.include_router(admin.router, prefix="/api")
 
-@app.on_event("startup")
-def preload_vision_onnx_model():
-    try:
-        from app.ai.vision.inference import get_onnx_session
-        session = get_onnx_session()
-        if session:
-            print("[STARTUP] ONNX Runtime Vision Model pre-loaded successfully.")
-    except Exception as e:
-        print(f"[STARTUP WARNING] ONNX Runtime Vision Model pre-load warning: {e}")
 
 @app.get("/")
 def root():

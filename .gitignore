@@ -39,6 +39,11 @@ vision_models/**/*.onnx
 !vision_models/experiments/grocery_yolov8_v2/weights/best.pt
 !vision_models/deployment/grocery_yolov8_v2_web/model.pt
 !vision_models/deployment/grocery_yolov8_v2_web/model.onnx
+!vision_models/v3/freshguard_vision_v3.onnx
+!vision_models/v3/v3_classes_metadata.json
+!vision_models/rollback_v2/model.onnx
+!vision_models/rollback_v2/classes_metadata.json
+!vision_models/rollback_v2/model_metadata.json
 
 # Flutter & IDE
 .dart_tool/

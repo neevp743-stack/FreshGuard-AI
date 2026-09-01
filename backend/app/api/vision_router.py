@@ -251,17 +251,18 @@ async def detect_vision_v3(payload: VisionDetectPayload, db: Session = Depends(g
             import base64
             image_bytes = base64.b64decode(payload.image_base64)
             from app.core.config import settings
+            from app.ai.vision.inference import run_experimental_v2_inference
             orig_setting = settings.FRESHGUARD_VISION_MODEL
             try:
                 settings.FRESHGUARD_VISION_MODEL = "v3"
-                res = detect_freshguard_v2(image_bytes)
+                res = run_experimental_v2_inference(image_bytes)
                 res["model_version"] = "v3.0.0"
                 return res
             finally:
                 settings.FRESHGUARD_VISION_MODEL = orig_setting
         except Exception as e:
             return {
-                "status": "error",
+                "success": False,
                 "model_version": "v3.0.0",
                 "error": str(e),
                 "detections": [],
@@ -269,9 +270,10 @@ async def detect_vision_v3(payload: VisionDetectPayload, db: Session = Depends(g
                 "inference_ms": 0.0
             }
     return {
-        "status": "success",
+        "success": True,
         "model_version": "v3.0.0",
         "detections": [],
         "count": 0,
-        "inference_ms": 18.5
+        "inference_ms": 0.0,
+        "message": "No image payload provided."
     }

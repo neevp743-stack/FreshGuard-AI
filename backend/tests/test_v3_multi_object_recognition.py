@@ -47,7 +47,7 @@ def test_v3_multi_object_detection_endpoint_schema():
     res = client.post("/api/v1/scanner/vision/detect_v3", json=payload)
     assert res.status_code == 200
     data = res.json()
-    assert data.get("status") in ["success", "error"]
+    assert "success" in data
     assert "model_version" in data and data["model_version"] == "v3.0.0"
     assert "detections" in data and isinstance(data["detections"], list)
     assert "count" in data and isinstance(data["count"], int)

@@ -20,3 +20,4 @@ firebase-admin==6.5.0
 ultralytics==8.1.24
 torch==2.3.0
 torchvision==0.18.0
+psutil==5.9.8
