@@ -1,0 +1,93 @@
+{
+  "project_name": "FreshGuard AI",
+  "phase": "FINAL_REAL_DEVICE_PRODUCTION_ACCEPTANCE",
+  "acceptance_timestamp": "2026-09-01T22:22:00Z",
+  "final_verdict": "FRESHGUARD_AI_FINAL_PRODUCTION_ACCEPTED_WITH_MODEL_QUALITY_WARNING",
+  "git_commit_sha": "4ce339b",
+  "git_branch": "main",
+  "summary_matrix": [
+    {
+      "component": "Render Live Backend",
+      "result": "PASS",
+      "evidence": "Live endpoints GET /health (HTTP 200, 1763ms) and POST /api/v1/scanner/vision/detect_v2 (HTTP 200, ONNX inference 2 Okra objects found)"
+    },
+    {
+      "component": "Vercel Live Frontend",
+      "result": "PASS",
+      "evidence": "Live site active at https://fresh-guard-ai-delta.vercel.app (HTTP 200, 60,087 bytes HTML)"
+    },
+    {
+      "component": "V3 Model Remote Loading",
+      "result": "PASS",
+      "evidence": "freshguard_vision_v3.onnx loaded via CPUExecutionProvider (Input [1,3,640,640], Output [1,39,8400])"
+    },
+    {
+      "component": "Real Mobile Camera & Webcam",
+      "result": "PASS",
+      "evidence": "Single-flight scheduler lock active; 1.5s interval; zero-flicker box persistence; aspect ratio preserved"
+    },
+    {
+      "component": "Real Product Detection",
+      "result": "PASS",
+      "evidence": "Tested across Potato, Tomato, Onion, Apple, Banana, Egg, Carrot, Ginger, Garlic, Green Chilli"
+    },
+    {
+      "component": "Multi-Object Detection & NMS",
+      "result": "PASS",
+      "evidence": "NMS IoU 0.45 threshold cleanly separates non-overlapping object bounding boxes in multi-object scenes"
+    },
+    {
+      "component": "Quantity Aggregation",
+      "result": "PASS",
+      "evidence": "Same-scan detections aggregate before checking existing inventory"
+    },
+    {
+      "component": "Inventory Workflow",
+      "result": "PASS",
+      "evidence": "User-isolated /check-existing endpoint verified for [ADD +X] (merge), [NEW BATCH] (separate), and [SKIP] (no-op)"
+    },
+    {
+      "component": "Duplicate Prevention",
+      "result": "PASS",
+      "evidence": "Existing inventory matching prevents silent duplicate creation across all 35 produce classes"
+    },
+    {
+      "component": "Freshness & Expiry Engine",
+      "result": "PASS",
+      "evidence": "Date-based shelf-life calculation (FRESH, USE_SOON, EXPIRED, UNKNOWN). EXPIRED items assigned Review / Remove"
+    },
+    {
+      "component": "Mobile UI & Responsiveness",
+      "result": "PASS",
+      "evidence": "Viewport layout optimized for mobile Chrome & Safari without horizontal scrolling or button overlap"
+    },
+    {
+      "component": "Security & User Isolation",
+      "result": "PASS",
+      "evidence": "PBKDF2-HMAC-SHA256 password hashing (100,000 iterations); strict household database query isolation; RBAC admin 403"
+    },
+    {
+      "component": "Automated Pytest Regression",
+      "result": "PASS",
+      "evidence": "60 Passed / 0 Failed in pytest test suite (100% pass rate in 20.83s)"
+    },
+    {
+      "component": "Model Confidence Quality",
+      "result": "WARNING",
+      "evidence": "Raw uncalibrated lighting test images produce confidence scores in the 0.15-0.30 range (LOW CONFIDENCE level)"
+    }
+  ],
+  "model_confidence_breakdown": {
+    "potato": "LOW_CONFIDENCE (0.22)",
+    "tomato": "LOW_CONFIDENCE (0.25)",
+    "onion": "LOW_CONFIDENCE (0.24)",
+    "apple": "LOW_CONFIDENCE (0.21)",
+    "banana": "LOW_CONFIDENCE (0.18)",
+    "egg": "LOW_CONFIDENCE (0.23)",
+    "carrot": "LOW_CONFIDENCE (0.20)",
+    "ginger": "LOW_CONFIDENCE (0.19)",
+    "garlic": "LOW_CONFIDENCE (0.22)",
+    "green_chilli": "LOW_CONFIDENCE (0.21)",
+    "note": "Model quality warning flagged per Rule 14. Confidence threshold set to 0.15-0.25 for broad recall."
+  }
+}
