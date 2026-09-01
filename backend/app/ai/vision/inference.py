@@ -395,11 +395,24 @@ def _run_onnxruntime_v2_inference(image_bytes: bytes, conf_threshold: float = 0.
             cls_id = int(filtered_class_ids[idx])
             cls_name = class_names[cls_id] if cls_id < len(class_names) else f"class_{cls_id}"
 
+            conf_val = float(round(conf, 3))
+            if conf_val >= 0.50:
+                conf_level = "HIGH"
+                req_confirm = False
+            elif conf_val >= 0.30:
+                conf_level = "MEDIUM"
+                req_confirm = False
+            else:
+                conf_level = "LOW"
+                req_confirm = True
+
             box = boxes_xyxy[idx]
             detections.append({
                 "class_id": cls_id,
                 "class_name": cls_name,
-                "confidence": float(round(conf, 3)),
+                "confidence": conf_val,
+                "confidence_level": conf_level,
+                "requires_confirmation": req_confirm,
                 "bbox": [float(round(box[0], 1)), float(round(box[1], 1)), float(round(box[2], 1)), float(round(box[3], 1))]
             })
 
