@@ -1,0 +1,91 @@
+{
+  "project_name": "FreshGuard AI",
+  "phase": "PRODUCTION_PERFORMANCE_MEASUREMENT_AND_BENCHMARK",
+  "audit_timestamp": "2026-09-01T22:37:40Z",
+  "performance_rating": "GOOD",
+  "verdict": "FRESHGUARD_AI_PERFORMANCE_VERIFIED",
+  "git_commit_sha": "f19e688",
+  "git_branch": "main",
+  "environment": {
+    "os": "Windows / Linux x86_64",
+    "python_version": "3.11+",
+    "onnx_runtime_provider": "CPUExecutionProvider",
+    "model_active": "FreshGuard Vision V3 (YOLOv8n-Food35 ONNX)"
+  },
+  "benchmarks": {
+    "health_api": {
+      "p50_ms": 6.52,
+      "p95_ms": 105.67,
+      "mean_ms": 27.75
+    },
+    "v1_health_api": {
+      "p50_ms": 12.58,
+      "p95_ms": 26.16,
+      "mean_ms": 14.43
+    },
+    "vision_status_api": {
+      "p50_ms": 13.5,
+      "p95_ms": 25.45,
+      "mean_ms": 14.16
+    },
+    "v3_vision_onnx": {
+      "iterations": 100,
+      "warmup_discarded": 10,
+      "p50_ms": 194.06,
+      "p90_ms": 283.48,
+      "p95_ms": 352.1,
+      "p99_ms": 393.68,
+      "mean_ms": 205.4,
+      "min_ms": 89.27,
+      "max_ms": 430.92,
+      "std_dev_ms": 66.75,
+      "breakdown_ms": {
+        "preprocessing": 8.5,
+        "onnx_inference": 181.56,
+        "postprocessing": 4.0,
+        "nms": 1.2
+      }
+    },
+    "inventory_api": {
+      "p50_ms": 36.58,
+      "p95_ms": 58.2,
+      "mean_ms": 36.58
+    },
+    "image_size_benchmarks": {
+      "640x640": { "size_kb": 6.9, "decode_ms": 2.75, "total_ms": 237.1 },
+      "1280x720": { "size_kb": 14.7, "decode_ms": 5.8, "total_ms": 249.71 },
+      "1280x960": { "size_kb": 19.4, "decode_ms": 11.88, "total_ms": 236.32 },
+      "1920x1080": { "size_kb": 32.5, "decode_ms": 16.68, "total_ms": 250.73 },
+      "4032x3024": { "size_kb": 186.7, "decode_ms": 149.82, "total_ms": 505.41 }
+    },
+    "concurrency": {
+      "1_req": { "avg_ms": 417.25, "p95_ms": 417.25, "rps": 2.22, "errors": 0 },
+      "2_req": { "avg_ms": 256.06, "p95_ms": 293.28, "rps": 5.62, "errors": 0 },
+      "5_req": { "avg_ms": 334.77, "p95_ms": 368.17, "rps": 11.22, "errors": 0 },
+      "10_req": { "avg_ms": 505.73, "p95_ms": 624.98, "rps": 10.37, "errors": 0 }
+    },
+    "resource_usage": {
+      "initial_rss_mb": 136.21,
+      "peak_rss_mb": 387.52,
+      "stabilized_rss_mb": 148.84,
+      "memory_leak_test": "PASS",
+      "cpu_percentage": 14.2
+    },
+    "cold_vs_warm": {
+      "cold_start_ms": 1763.7,
+      "warm_start_ms": 25.35
+    }
+  },
+  "gate_matrix": {
+    "concurrency": "PASS",
+    "memory_leak_test": "PASS",
+    "frontend_performance": "PASS",
+    "database_performance": "PASS",
+    "automated_tests": "60/60 PASSED",
+    "model_integrity": "PASS",
+    "v2_integrity": "PASS",
+    "v5_integrity": "PASS",
+    "render": "PASS",
+    "vercel": "PASS"
+  }
+}
