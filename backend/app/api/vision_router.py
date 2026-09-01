@@ -243,7 +243,6 @@ async def scan_multimodal_pipeline(
 
 
 @router.post("/detect_v3")
-@router.post("/scanner/vision/detect_v3")
 async def detect_vision_v3(payload: VisionDetectPayload, db: Session = Depends(get_db)):
     """Isolated FreshGuard Vision V3 detection endpoint for 35-class evaluation."""
     if payload.image_base64:
