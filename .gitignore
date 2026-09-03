@@ -9,7 +9,10 @@ yolov8n.pt
 vision_feedback_metadata.jsonl
 
 # Vision Dataset & Staging Directories
+datasets/archive/
 datasets/archive.zip
+datasets/freshguard_35_clean/
+datasets/freshguard_v3/
 datasets/grocery_vision/images/
 datasets/grocery_vision/labels/
 datasets/grocery_vision/raw_unannotated/
@@ -29,6 +32,10 @@ training/v5/models/
 training/v5/validation/V5_VALIDATION_GALLERY/
 runs/
 training/vision_models/v3_training/run_v3/
+
+# Scratch & Verification Artifacts
+scratch/
+live_render_verification.json
 
 # Trained Model Binaries (Include V2 experimental model weights & ONNX export for Render deployment)
 *.pt
