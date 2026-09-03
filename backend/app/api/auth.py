@@ -8,7 +8,12 @@ from app.schemas.schemas import UserRegister, UserLogin, TokenResponse, Househol
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
-@router.post("/register", response_model=TokenResponse)
+@router.post(
+    "/register",
+    response_model=TokenResponse,
+    summary="Register New User & Household",
+    description="Registers a new user account with PBKDF2 password hashing, creates a default household and user preferences."
+)
 def register(user_data: UserRegister, db: Session = Depends(get_db)):
     # Check if email exists
     existing = db.query(User).filter(User.email == user_data.email).first()
@@ -58,7 +63,12 @@ def register(user_data: UserRegister, db: Session = Depends(get_db)):
         household_name=household.name
     )
 
-@router.post("/login", response_model=TokenResponse)
+@router.post(
+    "/login",
+    response_model=TokenResponse,
+    summary="Authenticate User & Issue JWT",
+    description="Authenticates email and password using PBKDF2-HMAC-SHA256, transparently re-hashes legacy credentials, and returns JWT access token."
+)
 def login(login_data: UserLogin, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == login_data.email).first()
     if not user:
@@ -97,7 +107,11 @@ def login(login_data: UserLogin, db: Session = Depends(get_db)):
         household_name=h_name
     )
 
-@router.get("/me")
+@router.get(
+    "/me",
+    summary="Get Authenticated User Profile",
+    description="Fetches current user account details, assigned role, household ID, and join code."
+)
 def get_me(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     member = db.query(HouseholdMember).filter(HouseholdMember.user_id == current_user.id).first()
     household = db.query(Household).filter(Household.id == member.household_id).first() if member else None

@@ -9,10 +9,68 @@ from app.api import auth, inventory, freshness_router, scanner, vision_router, a
 # Create database tables automatically
 Base.metadata.create_all(bind=engine)
 
+tags_metadata = [
+    {
+        "name": "Operational Health Probes",
+        "description": "Ultra-fast liveness and application readiness health status endpoints."
+    },
+    {
+        "name": "Authentication & User Access",
+        "description": "User registration, PBKDF2 authentication, JWT access token generation, and user profile management."
+    },
+    {
+        "name": "Inventory Management Engine",
+        "description": "Household food inventory tracking, quantity merging, batch management, and status updates."
+    },
+    {
+        "name": "Freshness & Expiry Engine",
+        "description": "Dynamic shelf-life calculations, freshness state tracking (FRESH, USE_SOON, EXPIRED), and consumption priority."
+    },
+    {
+        "name": "Vision AI & Multi-Modal Scanner",
+        "description": "YOLOv8 35-class ONNX vision object detection, multi-modal barcode+vision+OCR identity pipeline, and active learning feedback."
+    },
+    {
+        "name": "Barcode & OCR Scanner Service",
+        "description": "Open Food Facts barcode metadata lookup and packaging label text/date OCR parsing."
+    },
+    {
+        "name": "Smart Cart & Grocery Assistant",
+        "description": "Automated grocery refill recommendations and AI shopping cart management."
+    },
+    {
+        "name": "Notifications & Expiry Alerts",
+        "description": "24-hour deduplicated FCM push notification preferences and alert dispatch."
+    },
+    {
+        "name": "Household Analytics",
+        "description": "Consumption velocity, food waste prevention metrics, and category distributions."
+    },
+    {
+        "name": "Administrative Diagnostics",
+        "description": "Protected RBAC system diagnostics and telemetry (ADMIN access required)."
+    }
+]
+
 app = FastAPI(
     title=settings.APP_NAME,
-    version="1.0.0",
-    description="AI-powered household food & grocery management application API"
+    version="3.0.0",
+    description=(
+        "**FreshGuard AI Production API Service**\n\n"
+        "An AI-powered household food, freshness, and grocery management application API. "
+        "Provides 35-class YOLOv8 vision object detection, multi-modal barcode/OCR parsing, "
+        "dynamic freshness calculation, household inventory management, and FCM push notifications."
+    ),
+    openapi_tags=tags_metadata,
+    contact={
+        "name": "FreshGuard AI Engineering Team",
+        "url": "https://github.com/neevp743-stack/FreshGuard-AI",
+        "email": "engineering@freshguard.ai",
+    },
+    license_info={
+        "name": "MIT License",
+        "url": "https://opensource.org/licenses/MIT",
+    }
 )
 
 # Enable CORS for Flutter mobile and web applications using configurable CORS_ORIGINS

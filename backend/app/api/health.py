@@ -5,10 +5,10 @@ from sqlalchemy import text
 from app.core.database import get_db
 from app.schemas.schemas import HealthCheckResponse
 
-router = APIRouter(tags=["Health & Status"])
+router = APIRouter(tags=["Operational Health Probes"])
 
-@router.get("/health", response_model=HealthCheckResponse)
-@router.get("/api/v1/health", response_model=HealthCheckResponse)
+@router.get("/health", response_model=HealthCheckResponse, summary="Operational Health Probe", description="Lightweight health probe for cloud load balancers and deployment readiness.")
+@router.get("/api/v1/health", response_model=HealthCheckResponse, summary="API v1 Health Probe", description="API v1 health status probe.")
 def get_health_status(db: Session = Depends(get_db)):
     """
     Extremely lightweight health probe.
@@ -30,6 +30,6 @@ def get_health_status(db: Session = Depends(get_db)):
         status=status_str,
         process_alive=True,
         database_connected=db_connected,
-        version="1.0.0",
+        version="3.0.0",
         timestamp=datetime.now(timezone.utc).isoformat()
     )
